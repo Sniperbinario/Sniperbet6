@@ -9,19 +9,19 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
+// IDs dos campeonatos importantes
+const leagueIds = [71, 72, 13, 39, 140, 135];
+
 app.get('/games', async (req, res) => {
   const apiKey = process.env.API_KEY;
-
-  // IDs dos campeonatos importantes
-  const leagues = [13, 71, 72, 39, 140, 135];
-  const date = new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split('T')[0];
 
   try {
     let allGames = [];
 
-    for (const leagueId of leagues) {
+    for (const leagueId of leagueIds) {
       const response = await axios.get(
-        `https://api-football-v1.p.rapidapi.com/v3/fixtures?date=${date}&league=${leagueId}&season=2024`,
+        `https://api-football-v1.p.rapidapi.com/v3/fixtures?date=${today}&league=${leagueId}&season=2024`,
         {
           headers: {
             'X-RapidAPI-Key': apiKey,
@@ -43,8 +43,8 @@ app.get('/games', async (req, res) => {
         stats: {
           goalsForAvg: (Math.random() * 3).toFixed(1),
           goalsAgainstAvg: (Math.random() * 3).toFixed(1),
-          shotsTotal: Math.floor(Math.random() * 50),
-          shotsOn: Math.floor(Math.random() * 20),
+          shotsTotal: Math.floor(Math.random() * 30),
+          shotsOn: Math.floor(Math.random() * 10),
           shotsTotalAvg: (Math.random() * 10).toFixed(1),
           shotsOnAvg: (Math.random() * 5).toFixed(1),
           cornersAvg: (Math.random() * 8).toFixed(1),
@@ -60,7 +60,7 @@ app.get('/games', async (req, res) => {
     res.json(allGames);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Erro ao buscar jogos' });
+    res.status(500).json({ error: 'Erro ao buscar jogos filtrados' });
   }
 });
 
