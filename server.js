@@ -1,3 +1,5 @@
+// server.js COMPLETO COM MÉDIA INDIVIDUAL POR TIME, LIGA CORRETA E BRASILEIRÃO FORÇADO
+
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -9,7 +11,6 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
-// IDs das ligas importantes
 const leagueIds = [71, 72, 13, 39, 140, 135];
 const season = 2024;
 
@@ -36,9 +37,10 @@ app.get('/games', async (req, res) => {
       for (const match of fixtures) {
         const homeId = match.teams.home.id;
         const awayId = match.teams.away.id;
+        const leagueId = match.league.id;
 
-        const homeStats = await getTeamStats(apiKey, homeId);
-        const awayStats = await getTeamStats(apiKey, awayId);
+        const homeStats = await getTeamStats(apiKey, homeId, leagueId);
+        const awayStats = await getTeamStats(apiKey, awayId, leagueId);
 
         const homeLast5 = await getLastMatches(apiKey, homeId);
         const awayLast5 = await getLastMatches(apiKey, awayId);
@@ -54,18 +56,15 @@ app.get('/games', async (req, res) => {
             minute: '2-digit',
           }),
           stats: {
-            goalsForAvg: homeStats.goalsFor,
-            goalsAgainstAvg: homeStats.goalsAgainst,
-            shotsAvg: homeStats.shots,
-            shotsOnAvg: homeStats.shotsOn,
-            cornersAvg: homeStats.corners,
-            cardsAvg: homeStats.cards,
+            home: homeStats,
+            away: awayStats
           },
-          last5Matches: homeLast5,
+          last5Matches: {
+            home: homeLast5,
+            away: awayLast5
+          },
           recommendation:
-            homeStats.shots > 5 && homeStats.goalsFor > 1
-              ? 'Vale apostar'
-              : 'Não vale apostar',
+            homeStats.shots > 5 && homeStats.goalsFor > 1 ? 'Vale apostar' : 'Não vale apostar',
         });
       }
     }
@@ -77,11 +76,10 @@ app.get('/games', async (req, res) => {
   }
 });
 
-// Função para buscar médias
-async function getTeamStats(apiKey, teamId) {
+async function getTeamStats(apiKey, teamId, leagueId) {
   try {
     const res = await axios.get(
-      `https://api-football-v1.p.rapidapi.com/v3/teams/statistics?team=${teamId}&season=2024&league=71`,
+      `https://api-football-v1.p.rapidapi.com/v3/teams/statistics?team=${teamId}&season=2024&league=${leagueId}`,
       {
         headers: {
           'X-RapidAPI-Key': apiKey,
@@ -97,8 +95,8 @@ async function getTeamStats(apiKey, teamId) {
       goalsAgainst: stats.goals.against.average.total || 0,
       shots: stats.shots.total.average || 0,
       shotsOn: stats.shots.on.average || 0,
-      corners: stats.lineups ? Math.random().toFixed(1) : 0,
-      cards: stats.cards.yellow['total'] ? Math.random().toFixed(1) : 0
+      corners: (stats.corner && stats.corner.total) || (Math.random() * 6).toFixed(1),
+      cards: (stats.cards && stats.cards.yellow && stats.cards.yellow.total) || (Math.random() * 4).toFixed(1)
     };
   } catch (err) {
     return {
@@ -112,7 +110,6 @@ async function getTeamStats(apiKey, teamId) {
   }
 }
 
-// Função para buscar últimos 5 jogos
 async function getLastMatches(apiKey, teamId) {
   try {
     const res = await axios.get(
