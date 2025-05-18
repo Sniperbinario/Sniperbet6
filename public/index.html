@@ -1,1 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>SniperBet</title>
+  <style>
+    body { background-color: #111; color: #eee; font-family: Arial, sans-serif; padding: 20px; }
+    .game { background: #222; padding: 15px; margin-bottom: 20px; border-radius: 10px; }
+    .team-logo { height: 30px; vertical-align: middle; margin-right: 10px; }
+    .team-names { font-size: 18px; font-weight: bold; }
+    .stats { margin-top: 10px; font-size: 14px; }
+    .recommendation { margin-top: 10px; font-weight: bold; color: #0f0; }
+  </style>
+</head>
+<body>
+  <h1>SniperBet — Jogos de Hoje</h1>
+  <div id="games">Carregando...</div>
+
+  <script>
+    async function loadGames() {
+      const res = await fetch('/games');
+      const games = await res.json();
+
+      const container = document.getElementById('games');
+      container.innerHTML = '';
+
+      games.forEach(game => {
+        const div = document.createElement('div');
+        div.className = 'game';
+        div.innerHTML = `
+          <div class="team-names">
+            <img src="${game.homeLogo}" class="team-logo"> ${game.homeTeam}
+            vs
+            <img src="${game.awayLogo}" class="team-logo"> ${game.awayTeam}
+          </div>
+          <div>⏰ Horário: ${game.time}</div>
+          <div class="stats">
+            <div>📊 <strong>Médias (últimos 5 jogos):</strong></div>
+            <div>• Gols feitos: ${game.stats.goalsForAvg}</div>
+            <div>• Gols sofridos: ${game.stats.goalsAgainstAvg}</div>
+            <div>• Chutes: ${game.stats.shotsTotal} (total) — Média: ${game.stats.shotsTotalAvg}</div>
+            <div>• Chutes ao gol: ${game.stats.shotsOn} (total) — Média: ${game.stats.shotsOnAvg}</div>
+            <div>• Escanteios (média): ${game.stats.cornersAvg}</div>
+            <div>• Cartões (média): ${game.stats.cardsAvg}</div>
+          </div>
+          <div class="recommendation">🔎 ${game.recommendation}</div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    loadGames();
+  </script>
+</body>
+</html>
 <!-- Código HTML frontend aqui -->
