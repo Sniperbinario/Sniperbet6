@@ -1,4 +1,4 @@
-// server.js — ajustado para ativar backup se menos de 10 jogos forem carregados da API
+// server.js — corrigido: data no fuso de Brasília e média de chutes com fallback
 
 const express = require('express');
 const axios = require('axios');
@@ -17,7 +17,11 @@ const season = 2024;
 
 app.get('/games', async (req, res) => {
   const apiKey = process.env.API_KEY;
-  const today = new Date().toISOString().split('T')[0];
+
+  const brDate = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const [day, month, year] = brDate.split('/');
+  const today = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+
   let finalGames = [];
 
   try {
@@ -88,10 +92,10 @@ async function getTeamStats(apiKey, teamId, leagueId) {
     const stats = res.data.response;
 
     return {
-      goalsFor: stats.goals?.for?.average?.total || 0,
-      goalsAgainst: stats.goals?.against?.average?.total || 0,
-      shots: stats.shots?.total?.average || 0,
-      shotsOn: stats.shots?.on?.average || 0,
+      goalsFor: stats.goals?.for?.average?.total ?? 0,
+      goalsAgainst: stats.goals?.against?.average?.total ?? 0,
+      shots: stats.shots?.total?.average ?? 0,
+      shotsOn: stats.shots?.on?.average ?? 0,
       corners: (Math.random() * 6).toFixed(1),
       cards: (Math.random() * 4).toFixed(1)
     };
