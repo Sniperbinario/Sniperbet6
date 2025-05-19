@@ -1,18 +1,15 @@
 {
   "name": "sniperbet",
+  "version": "1.0.0"
   "version": "1.0.0",
-  "description": "SniperBet - análise de jogos com estatísticas e sugestões automáticas",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "axios": "^1.6.8",
+    "axios": "^1.6.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.18.4"
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2"
   }
 }
