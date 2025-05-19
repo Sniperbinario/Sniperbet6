@@ -1,9 +1,9 @@
-// server.js COMPLETO COM SISTEMA HÍBRIDO E BACKUP VIA FLASHSCORE
+// server.js — API-Football como fonte principal + Cheerio (Sofascore) como backup leve
 
 const express = require('express');
 const axios = require('axios');
+const cheerio = require('cheerio');
 const cors = require('cors');
-const puppeteer = require('puppeteer');
 require('dotenv').config();
 
 const app = express();
@@ -63,15 +63,15 @@ app.get('/games', async (req, res) => {
     }
 
     if (finalGames.length === 0) {
-      console.log('⚠️ Nenhum jogo retornado pela API. Ativando backup Flashscore...');
-      const backupGames = await getGamesFromFlashscore();
+      console.log('⚠️ Nenhum jogo retornado pela API. Ativando backup Cheerio (Sofascore)...');
+      const backupGames = await getGamesFromSofascore();
       return res.json(backupGames);
     }
 
     res.json(finalGames);
   } catch (err) {
     console.error('Erro na API principal:', err.message);
-    const backupGames = await getGamesFromFlashscore();
+    const backupGames = await getGamesFromSofascore();
     return res.json(backupGames);
   }
 });
@@ -124,37 +124,38 @@ async function getLastMatches(apiKey, teamId) {
   }
 }
 
-async function getGamesFromFlashscore() {
-  const browser = await puppeteer.launch({ headless: true });
-  const page = await browser.newPage();
-  await page.goto('https://www.flashscore.com.br/', { waitUntil: 'networkidle2' });
+async function getGamesFromSofascore() {
+  try {
+    const { data } = await axios.get('https://www.sofascore.com/');
+    const $ = cheerio.load(data);
+    const games = [];
 
-  const games = await page.evaluate(() => {
-    const matches = [];
-    document.querySelectorAll('.event__match').forEach((el) => {
-      const home = el.querySelector('.event__participant--home')?.textContent || 'Time Casa';
-      const away = el.querySelector('.event__participant--away')?.textContent || 'Time Fora';
-      const time = el.querySelector('.event__time')?.textContent || '??:??';
+    $('.event-row__name').each((_, el) => {
+      const home = $(el).find('.event-row__name--home').text().trim();
+      const away = $(el).find('.event-row__name--away').text().trim();
 
-      matches.push({
-        homeTeam: home,
-        awayTeam: away,
-        time: time,
-        homeLogo: '',
-        awayLogo: '',
-        stats: {
-          home: { goalsFor: '-', goalsAgainst: '-', shots: '-', shotsOn: '-', corners: '-', cards: '-' },
-          away: { goalsFor: '-', goalsAgainst: '-', shots: '-', shotsOn: '-', corners: '-', cards: '-' }
-        },
-        last5Matches: { home: [], away: [] },
-        recommendation: '⚠️ Dados via backup'
-      });
+      if (home && away) {
+        games.push({
+          homeTeam: home,
+          awayTeam: away,
+          time: 'Horário não disponível',
+          homeLogo: '',
+          awayLogo: '',
+          stats: {
+            home: { goalsFor: '-', goalsAgainst: '-', shots: '-', shotsOn: '-', corners: '-', cards: '-' },
+            away: { goalsFor: '-', goalsAgainst: '-', shots: '-', shotsOn: '-', corners: '-', cards: '-' }
+          },
+          last5Matches: { home: [], away: [] },
+          recommendation: '⚠️ Dados via backup Sofascore'
+        });
+      }
     });
-    return matches;
-  });
 
-  await browser.close();
-  return games;
+    return games;
+  } catch (err) {
+    console.error('Erro no scraping Sofascore:', err.message);
+    return [];
+  }
 }
 
 app.listen(PORT, () => {
