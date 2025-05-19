@@ -1,4 +1,4 @@
-const express = require('express');
+""const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 require('dotenv').config();
@@ -9,8 +9,6 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
-// Incluindo Série A (71), Série B (72), Liberta (13), Premier (39), La Liga (140), Serie A ITA (135) e Torneio Betano Argentino (130)
-const leagueIds = [71, 72, 13, 39, 140, 135, 130];
 const season = 2024;
 
 app.get('/games', async (req, res) => {
@@ -22,48 +20,39 @@ app.get('/games', async (req, res) => {
   let finalGames = [];
 
   try {
-    for (const leagueId of leagueIds) {
-      const fixtureRes = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?date=${today}&league=${leagueId}&season=${season}`, {
-        headers: {
-          'X-RapidAPI-Key': apiKey,
-          'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-        }
-      });
-
-      const fixtures = fixtureRes.data.response.filter(f => f.fixture.status.short === "FT");
-
-      for (const match of fixtures) {
-        const fixtureId = match.fixture.id;
-        const homeId = match.teams.home.id;
-        const awayId = match.teams.away.id;
-        const matchLeagueId = match.league.id;
-
-        const homeStats = await getTeamStats(apiKey, homeId, matchLeagueId);
-        const awayStats = await getTeamStats(apiKey, awayId, matchLeagueId);
-        const homeLast5 = await getLastMatches(apiKey, homeId);
-        const awayLast5 = await getLastMatches(apiKey, awayId);
-
-        const prediction = await getPrediction(apiKey, fixtureId);
-        const standings = await getStandings(apiKey, matchLeagueId);
-        const odds = await getOdds(apiKey, fixtureId);
-
-        finalGames.push({
-          fixtureId,
-          homeTeam: match.teams.home.name,
-          awayTeam: match.teams.away.name,
-          homeLogo: match.teams.home.logo,
-          awayLogo: match.teams.away.logo,
-          time: new Date(match.fixture.date).toLocaleTimeString('pt-BR', {
-            timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit'
-          }),
-          stats: { home: homeStats, away: awayStats },
-          last5Matches: { home: homeLast5, away: awayLast5 },
-          prediction,
-          standings,
-          odds,
-          recommendation: gerarRecomendacao(homeStats, awayStats)
-        });
+    const fixtureRes = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?date=${today}`, {
+      headers: {
+        'X-RapidAPI-Key': apiKey,
+        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
       }
+    });
+
+    const fixtures = fixtureRes.data.response; // NÃO FILTRA MAIS POR "FT"
+
+    for (const match of fixtures) {
+      const fixtureId = match.fixture.id;
+      const homeId = match.teams.home.id;
+      const awayId = match.teams.away.id;
+      const matchLeagueId = match.league.id;
+
+      const homeStats = await getTeamStats(apiKey, homeId, matchLeagueId);
+      const awayStats = await getTeamStats(apiKey, awayId, matchLeagueId);
+      const homeLast5 = await getLastMatches(apiKey, homeId);
+      const awayLast5 = await getLastMatches(apiKey, awayId);
+
+      finalGames.push({
+        fixtureId,
+        homeTeam: match.teams.home.name,
+        awayTeam: match.teams.away.name,
+        homeLogo: match.teams.home.logo,
+        awayLogo: match.teams.away.logo,
+        time: new Date(match.fixture.date).toLocaleTimeString('pt-BR', {
+          timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit'
+        }),
+        stats: { home: homeStats, away: awayStats },
+        last5Matches: { home: homeLast5, away: awayLast5 },
+        recommendation: gerarRecomendacao(homeStats, awayStats)
+      });
     }
 
     res.json(finalGames.length > 0 ? finalGames : []);
@@ -155,83 +144,12 @@ async function calculateShotsAndCorners(apiKey, teamId) {
     }
 
     return {
-      shots: (totalShots / count).toFixed(1),
-      shotsOn: (totalShotsOn / count).toFixed(1),
-      corners: (totalCorners / count).toFixed(1)
+      shots: count ? (totalShots / count).toFixed(1) : '-',
+      shotsOn: count ? (totalShotsOn / count).toFixed(1) : '-',
+      corners: count ? (totalCorners / count).toFixed(1) : '-'
     };
   } catch {
     return { shots: '-', shotsOn: '-', corners: '-' };
-  }
-}
-
-async function getPrediction(apiKey, fixtureId) {
-  try {
-    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/predictions?fixture=${fixtureId}`, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-      }
-    });
-
-    const pred = res.data.response?.[0];
-    return {
-      advice: pred?.predictions?.advice ?? '-',
-      win_percent: {
-        home: pred?.teams?.home?.win?.toString() ?? '0',
-        draw: pred?.teams?.draw?.toString() ?? '0',
-        away: pred?.teams?.away?.win?.toString() ?? '0'
-      }
-    };
-  } catch {
-    return { advice: '-', win_percent: { home: '0', draw: '0', away: '0' } };
-  }
-}
-
-async function getStandings(apiKey, leagueId) {
-  try {
-    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/standings?league=${leagueId}&season=2024`, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-      }
-    });
-    return res.data.response?.[0]?.league?.standings?.[0] ?? [];
-  } catch {
-    return [];
-  }
-}
-
-async function getOdds(apiKey, fixtureId) {
-  try {
-    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/odds?fixture=${fixtureId}&bookmaker=6`, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-      }
-    });
-
-    const bets = res.data.response?.[0]?.bookmakers?.[0]?.bets ?? [];
-    const odds = {};
-
-    for (const bet of bets) {
-      if (bet.name === 'Match Winner') {
-        bet.values.forEach(v => {
-          if (v.value === 'Home') odds.home = v.odd;
-          if (v.value === 'Draw') odds.draw = v.odd;
-          if (v.value === 'Away') odds.away = v.odd;
-        });
-      }
-      if (bet.name === 'Over/Under') {
-        odds.over25 = bet.values.find(v => v.value.includes('Over 2.5'))?.odd;
-      }
-      if (bet.name === 'Both Teams To Score') {
-        odds.btts = bet.values.find(v => v.value === 'Yes')?.odd;
-      }
-    }
-
-    return odds;
-  } catch {
-    return {};
   }
 }
 
