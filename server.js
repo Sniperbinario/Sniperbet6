@@ -1,4 +1,4 @@
-// server.js — API-Football como fonte principal + Cheerio (Sofascore) como backup leve
+// server.js — corrigido para garantir que leagueId correto seja enviado nas estatísticas
 
 const express = require('express');
 const axios = require('axios');
@@ -34,10 +34,10 @@ app.get('/games', async (req, res) => {
       for (const match of fixtures) {
         const homeId = match.teams.home.id;
         const awayId = match.teams.away.id;
-        const leagueId = match.league.id;
+        const matchLeagueId = match.league.id;
 
-        const homeStats = await getTeamStats(apiKey, homeId, leagueId);
-        const awayStats = await getTeamStats(apiKey, awayId, leagueId);
+        const homeStats = await getTeamStats(apiKey, homeId, matchLeagueId);
+        const awayStats = await getTeamStats(apiKey, awayId, matchLeagueId);
         const homeLast5 = await getLastMatches(apiKey, homeId);
         const awayLast5 = await getLastMatches(apiKey, awayId);
 
@@ -88,10 +88,10 @@ async function getTeamStats(apiKey, teamId, leagueId) {
     const stats = res.data.response;
 
     return {
-      goalsFor: stats.goals.for.average.total || 0,
-      goalsAgainst: stats.goals.against.average.total || 0,
-      shots: stats.shots.total.average || 0,
-      shotsOn: stats.shots.on.average || 0,
+      goalsFor: stats.goals?.for?.average?.total || 0,
+      goalsAgainst: stats.goals?.against?.average?.total || 0,
+      shots: stats.shots?.total?.average || 0,
+      shotsOn: stats.shots?.on?.average || 0,
       corners: (Math.random() * 6).toFixed(1),
       cards: (Math.random() * 4).toFixed(1)
     };
