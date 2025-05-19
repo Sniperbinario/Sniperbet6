@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>SniperBet - Jogos do Dia</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
       background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
@@ -12,10 +13,18 @@
       padding: 20px;
     }
 
-    h1 {
-      font-size: 28px;
-      color: #fff;
+    .titulo {
+      font-size: 36px;
+      font-weight: 900;
+      color: #00ff88;
+      text-shadow: 0 0 8px #00ff8866;
       margin-bottom: 30px;
+      text-align: center;
+    }
+
+    .sub {
+      color: #ffffffcc;
+      font-weight: 400;
     }
 
     .game {
@@ -35,14 +44,14 @@
     }
 
     .logo {
-      height: 28px;
+      height: 26px;
       vertical-align: middle;
     }
 
     .time {
       font-size: 14px;
       margin: 10px 0;
-      color: #aaa;
+      color: #ccc;
     }
 
     .stats-container {
@@ -68,20 +77,20 @@
     }
 
     .button {
-      display: inline-block;
-      background: #00ff88;
+      background-color: #00ff88;
       color: #000;
       font-weight: bold;
       border: none;
-      padding: 8px 16px;
+      padding: 10px 18px;
+      font-size: 14px;
       border-radius: 8px;
       cursor: pointer;
       margin-top: 15px;
-      transition: 0.3s;
+      transition: background 0.3s ease;
     }
 
     .button:hover {
-      background: #00cc6e;
+      background-color: #00d377;
     }
 
     hr {
@@ -94,15 +103,11 @@
       .stats-container {
         flex-direction: column;
       }
-
-      .stats {
-        margin-bottom: 15px;
-      }
     }
   </style>
 </head>
 <body>
-  <h1>⚽ SniperBet — Jogos do Dia</h1>
+  <h1 class="titulo">⚽ SniperBet <span class="sub">— Jogos do Dia</span></h1>
   <div id="games">Carregando...</div>
 
   <script>
@@ -133,11 +138,10 @@
         const homeStanding = standings.find(t => t.team.name === game.homeTeam);
         const awayStanding = standings.find(t => t.team.name === game.awayTeam);
         const odds = game.odds || {};
+        const predAdvice = game.prediction?.advice || '-';
 
         const homeClass = homeStanding ? `${homeStanding.rank}º lugar | ${homeStanding.points} pts | ${homeStanding.all.played} jogos (${homeStanding.all.win}V ${homeStanding.all.draw}E ${homeStanding.all.lose}D)` : '-';
         const awayClass = awayStanding ? `${awayStanding.rank}º lugar | ${awayStanding.points} pts | ${awayStanding.all.played} jogos (${awayStanding.all.win}V ${awayStanding.all.draw}E ${awayStanding.all.lose}D)` : '-';
-
-        const predAdvice = game.prediction?.advice || '-';
 
         div.innerHTML = `
           <div class="teams">
@@ -178,9 +182,9 @@
             <hr>
             <strong>📊 Previsão:</strong><br>
             • Palpite: ${predAdvice}<br>
-            • ${game.homeTeam}: ${predictions.home || '-'}%<br>
-            • Empate: ${predictions.draw || '-'}%<br>
-            • ${game.awayTeam}: ${predictions.away || '-'}%<br><br>
+            • ${game.homeTeam}: ${predictions.home || '0'}%<br>
+            • Empate: ${predictions.draw || '0'}%<br>
+            • ${game.awayTeam}: ${predictions.away || '0'}%<br><br>
 
             <strong>🏆 Classificação:</strong><br>
             ${game.homeTeam} - ${homeClass}<br>
