@@ -1,4 +1,4 @@
-// server.js atualizado para corrigir previsão e odds zeradas
+// server.js atualizado com fallback de porcentagens de previsão (0% ao invés de '-')
 
 const express = require('express');
 const axios = require('axios');
@@ -155,13 +155,13 @@ async function getPrediction(apiKey, fixtureId) {
     return {
       advice: pred?.predictions?.advice ?? '-',
       win_percent: {
-        home: pred?.teams?.home?.win ?? '-',
-        draw: pred?.teams?.draw ?? '-',
-        away: pred?.teams?.away?.win ?? '-'
+        home: pred?.teams?.home?.win?.toString() ?? '0',
+        draw: pred?.teams?.draw?.toString() ?? '0',
+        away: pred?.teams?.away?.win?.toString() ?? '0'
       }
     };
   } catch {
-    return { advice: '-', win_percent: { home: '-', draw: '-', away: '-' } };
+    return { advice: '-', win_percent: { home: '0', draw: '0', away: '0' } };
   }
 }
 
