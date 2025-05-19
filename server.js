@@ -1,4 +1,4 @@
-// server.js — média de chutes calculada manualmente se não vier pela API
+// server.js — agora com média de chutes calculada por fixture real
 
 const express = require('express');
 const axios = require('axios');
@@ -17,7 +17,6 @@ const season = 2024;
 
 app.get('/games', async (req, res) => {
   const apiKey = process.env.API_KEY;
-
   const brDate = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   const [day, month, year] = brDate.split('/');
   const today = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
@@ -90,8 +89,7 @@ async function getTeamStats(apiKey, teamId, leagueId) {
     });
 
     const stats = res.data.response;
-
-    const manual = await calculateShotsAverage(apiKey, teamId);
+    const manual = await calculateShotsAverageByFixture(apiKey, teamId);
 
     return {
       goalsFor: stats.goals?.for?.average?.total ?? 0,
@@ -102,14 +100,14 @@ async function getTeamStats(apiKey, teamId, leagueId) {
       cards: (Math.random() * 4).toFixed(1)
     };
   } catch (err) {
-    const manual = await calculateShotsAverage(apiKey, teamId);
+    const manual = await calculateShotsAverageByFixture(apiKey, teamId);
     return {
       goalsFor: 0, goalsAgainst: 0, shots: manual.shots, shotsOn: manual.shotsOn, corners: 0, cards: 0
     };
   }
 }
 
-async function calculateShotsAverage(apiKey, teamId) {
+async function calculateShotsAverageByFixture(apiKey, teamId) {
   try {
     const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${teamId}&last=5`, {
       headers: {
@@ -118,18 +116,28 @@ async function calculateShotsAverage(apiKey, teamId) {
       }
     });
 
-    const matches = res.data.response;
+    const fixtures = res.data.response;
     let totalShots = 0;
     let totalShotsOn = 0;
     let count = 0;
 
-    for (const match of matches) {
-      const stats = match.statistics?.find(s => s.team?.id === teamId);
-      if (stats) {
-        const shots = stats.statistics?.find(s => s.type === 'Total Shots')?.value ?? 0;
-        const shotsOn = stats.statistics?.find(s => s.type === 'Shots on Goal')?.value ?? 0;
-        totalShots += shots;
-        totalShotsOn += shotsOn;
+    for (const match of fixtures) {
+      const fixtureId = match.fixture.id;
+      const statsRes = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures/statistics?fixture=${fixtureId}`, {
+        headers: {
+          'X-RapidAPI-Key': apiKey,
+          'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
+        }
+      });
+
+      const allStats = statsRes.data.response;
+      const teamStats = allStats.find(s => s.team.id === teamId);
+
+      if (teamStats) {
+        const total = teamStats.statistics.find(s => s.type === 'Total Shots')?.value ?? 0;
+        const onTarget = teamStats.statistics.find(s => s.type === 'Shots on Goal')?.value ?? 0;
+        totalShots += total;
+        totalShotsOn += onTarget;
         count++;
       }
     }
