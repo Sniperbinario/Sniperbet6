@@ -9,7 +9,6 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
-// Incluindo Série A (71), Série B (72), Liberta (13), Premier (39), La Liga (140), Serie A ITA (135) e Torneio Betano Argentino (130)
 const leagueIds = [71, 72, 13, 39, 140, 135, 130];
 const season = 2024;
 
@@ -146,10 +145,13 @@ async function calculateShotsAndCorners(apiKey, teamId) {
 
       const stats = statsRes.data.response.find(e => e.team.id === teamId);
       if (stats) {
-        const get = (type) => stats.statistics.find(s => ['Total Shots', 'Shots on Goal', 'Corner Kicks', 'Total corners'].includes(s.type) && s.type.includes(type))?.value ?? 0;
-        totalShots += get('Shots');
-        totalShotsOn += get('Shots on Goal');
-        totalCorners += get('Corner');
+        const shots = stats.statistics.find(s => s.type === 'Total Shots')?.value ?? 0;
+        const shotsOn = stats.statistics.find(s => s.type === 'Shots on Goal')?.value ?? 0;
+        const corners = stats.statistics.find(s => ['Total corners', 'Corner Kicks', 'Corners'].includes(s.type))?.value ?? 0;
+
+        totalShots += shots;
+        totalShotsOn += shotsOn;
+        totalCorners += corners;
         count++;
       }
     }
