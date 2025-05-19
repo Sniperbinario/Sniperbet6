@@ -1,4 +1,4 @@
-// server.js — agora com média de chutes calculada por fixture real
+// server.js — cálculo com delay entre fixtures para evitar travamento no Render
 
 const express = require('express');
 const axios = require('axios');
@@ -107,6 +107,10 @@ async function getTeamStats(apiKey, teamId, leagueId) {
   }
 }
 
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function calculateShotsAverageByFixture(apiKey, teamId) {
   try {
     const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${teamId}&last=5`, {
@@ -122,6 +126,8 @@ async function calculateShotsAverageByFixture(apiKey, teamId) {
     let count = 0;
 
     for (const match of fixtures) {
+      await delay(600); // Pausa de 600ms entre as requisições
+
       const fixtureId = match.fixture.id;
       const statsRes = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures/statistics?fixture=${fixtureId}`, {
         headers: {
