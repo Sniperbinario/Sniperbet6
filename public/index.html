@@ -1,134 +1,103 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <title>SniperBet - Jogos do Dia</title>
-  <style>
-    body {
-      background-color: #0f0f0f;
-      color: #e0e0e0;
-      font-family: 'Segoe UI', sans-serif;
-      padding: 20px;
-    }
-    .game {
-      background-color: #1e1e1e;
-      border-radius: 10px;
-      padding: 15px;
-      margin-bottom: 20px;
-      box-shadow: 0 0 10px #000;
-    }
-    .teams {
-      font-size: 18px;
-      font-weight: bold;
-      margin-bottom: 5px;
-    }
-    .logo {
-      height: 24px;
-      vertical-align: middle;
-      margin-right: 6px;
-    }
-    .time {
-      font-size: 14px;
-      margin-bottom: 10px;
-      color: #ccc;
-    }
-    .stats-container {
-      display: flex;
-      justify-content: space-between;
-      gap: 20px;
-    }
-    .stats, .recent-matches {
-      font-size: 14px;
-      margin-top: 10px;
-    }
-    .recent-matches {
-      font-style: italic;
-      margin-top: 15px;
-    }
-    .rec {
-      margin-top: 10px;
-      font-weight: bold;
-      color: #00ff88;
-    }
-    .rec-backup {
-      color: #ffcc00;
-    }
-    hr {
-      border: 0;
-      border-top: 1px solid #333;
-      margin: 10px 0;
-    }
-  </style>
-</head>
-<body>
-  <h1>⚽ SniperBet — Jogos do Dia</h1>
-  <div id="games">Carregando...</div>
+<div id="games">Carregando...</div>
 
-  <script>
-    async function loadGames() {
-      const res = await fetch('/games');
-      const games = await res.json();
+<script>
+async function loadGames() {
+  const res = await fetch('/games');
+  const games = await res.json();
+  const container = document.getElementById('games');
+  container.innerHTML = '';
 
-      const container = document.getElementById('games');
-      container.innerHTML = '';
+  games.forEach(game => {
+    const div = document.createElement('div');
+    div.className = 'game';
 
-      games.forEach(game => {
-        const div = document.createElement('div');
-        div.className = 'game';
+    const isBackup = game.recommendation.includes('backup');
 
-        const isBackup = game.recommendation?.includes('backup');
+    const homeStats = game.stats.home;
+    const awayStats = game.stats.away;
 
-        const homeStats = game.stats?.home || {};
-        const awayStats = game.stats?.away || {};
+    const homeMatches = game.last5Matches.home?.map(m =>
+      `• ${m.date} — ${m.homeTeam} ${m.homeGoals} x ${m.awayGoals} ${m.awayTeam} (${m.venue})`
+    ).join('<br>') || '';
 
-        const homeMatches = game.last5Matches?.home?.map(match =>
-          `• ${match.date || '-'} — ${match.homeTeam || '-'} ${match.homeGoals ?? '-'} x ${match.awayGoals ?? '-'} ${match.awayTeam || '-'} (${match.venue || '-'})`
-        ).join('<br>') || 'Sem dados';
+    const awayMatches = game.last5Matches.away?.map(m =>
+      `• ${m.date} — ${m.homeTeam} ${m.homeGoals} x ${m.awayGoals} ${m.awayTeam} (${m.venue})`
+    ).join('<br>') || '';
 
-        const awayMatches = game.last5Matches?.away?.map(match =>
-          `• ${match.date || '-'} — ${match.homeTeam || '-'} ${match.homeGoals ?? '-'} x ${match.awayGoals ?? '-'} ${match.awayTeam || '-'} (${match.venue || '-'})`
-        ).join('<br>') || 'Sem dados';
+    const advancedId = `adv-${game.fixtureId}`;
+    
+    div.innerHTML = `
+      <div class="teams">
+        <img src="${game.homeLogo}" class="logo"> ${game.homeTeam}
+        vs
+        <img src="${game.awayLogo}" class="logo"> ${game.awayTeam}
+      </div>
+      <div class="time">🕒 Horário: ${game.time}</div>
+      <hr>
+      <div class="stats-container">
+        <div class="stats">
+          <strong>${game.homeTeam} - Médias (últimos 5 jogos):</strong><br>
+          • Gols feitos: ${homeStats.goalsFor}<br>
+          • Gols sofridos: ${homeStats.goalsAgainst}<br>
+          • Chutes: ${homeStats.shots}<br>
+          • Chutes ao gol: ${homeStats.shotsOn}<br>
+          • Escanteios: ${homeStats.corners}<br>
+          • Cartões: ${homeStats.cards}
+        </div>
+        <div class="stats">
+          <strong>${game.awayTeam} - Médias (últimos 5 jogos):</strong><br>
+          • Gols feitos: ${awayStats.goalsFor}<br>
+          • Gols sofridos: ${awayStats.goalsAgainst}<br>
+          • Chutes: ${awayStats.shots}<br>
+          • Chutes ao gol: ${awayStats.shotsOn}<br>
+          • Escanteios: ${awayStats.corners}<br>
+          • Cartões: ${awayStats.cards}
+        </div>
+      </div>
 
-        div.innerHTML = `
-          <div class="teams">
-            <img src="${game.homeLogo || ''}" class="logo"> ${game.homeTeam}
-            vs
-            <img src="${game.awayLogo || ''}" class="logo"> ${game.awayTeam}
-          </div>
-          <div class="time">🕒 Horário: ${game.time || '-'}</div>
-          <hr>
-          <div class="stats-container">
-            <div class="stats">
-              <strong>${game.homeTeam} - Médias:</strong><br>
-              • Gols feitos: ${homeStats.goalsFor ?? '-'}<br>
-              • Gols sofridos: ${homeStats.goalsAgainst ?? '-'}<br>
-              • Chutes: ${homeStats.shots ?? '-'}<br>
-              • Chutes ao gol: ${homeStats.shotsOn ?? '-'}<br>
-              • Escanteios: ${homeStats.corners ?? '-'}<br>
-              • Cartões: ${homeStats.cards ?? '-'}
-            </div>
-            <div class="stats">
-              <strong>${game.awayTeam} - Médias:</strong><br>
-              • Gols feitos: ${awayStats.goalsFor ?? '-'}<br>
-              • Gols sofridos: ${awayStats.goalsAgainst ?? '-'}<br>
-              • Chutes: ${awayStats.shots ?? '-'}<br>
-              • Chutes ao gol: ${awayStats.shotsOn ?? '-'}<br>
-              • Escanteios: ${awayStats.corners ?? '-'}<br>
-              • Cartões: ${awayStats.cards ?? '-'}
-            </div>
-          </div>
-          <div class="recent-matches">
-            <strong>Últimos 5 jogos de ${game.homeTeam}:</strong><br>${homeMatches}<br><br>
-            <strong>Últimos 5 jogos de ${game.awayTeam}:</strong><br>${awayMatches}
-          </div>
-          <div class="rec ${isBackup ? 'rec-backup' : ''}">🔎 ${game.recommendation}</div>
-        `;
+      <div class="recent-matches">
+        <strong>Últimos 5 jogos de ${game.homeTeam}:</strong><br>${homeMatches}<br><br>
+        <strong>Últimos 5 jogos de ${game.awayTeam}:</strong><br>${awayMatches}
+      </div>
 
-        container.appendChild(div);
-      });
-    }
+      <button onclick="toggleAdvanced('${advancedId}')">+ Ver análise avançada</button>
+      <div id="${advancedId}" style="display:none; margin-top: 10px; font-size: 14px;">
+        <hr>
+        <strong>📊 Previsão:</strong><br>
+        • Palpite: ${game.prediction.advice}<br>
+        • ${game.homeTeam}: ${game.prediction.win_percent.home}%<br>
+        • Empate: ${game.prediction.win_percent.draw}%<br>
+        • ${game.awayTeam}: ${game.prediction.win_percent.away}%<br><br>
 
-    loadGames();
-  </script>
-</body>
-</html>
+        <strong>🏆 Classificação:</strong><br>
+        ${getStanding(game.standings, game.homeTeam)}<br>
+        ${getStanding(game.standings, game.awayTeam)}<br><br>
+
+        <strong>💸 Odds:</strong><br>
+        • ${game.homeTeam}: ${game.odds.home ?? '-'}<br>
+        • Empate: ${game.odds.draw ?? '-'}<br>
+        • ${game.awayTeam}: ${game.odds.away ?? '-'}<br>
+        • Over 2.5: ${game.odds.over25 ?? '-'}<br>
+        • Ambos marcam: ${game.odds.btts ?? '-'}
+      </div>
+
+      <div class="rec ${isBackup ? 'rec-backup' : ''}">🔎 ${game.recommendation}</div>
+    `;
+
+    container.appendChild(div);
+  });
+}
+
+function toggleAdvanced(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function getStanding(standings, teamName) {
+  const team = standings?.find(t => t.team.name === teamName);
+  if (!team) return `• ${teamName}: classificação indisponível`;
+  return `• ${team.team.name} - ${team.rank}º lugar | ${team.points} pts | ${team.all.played} jogos (${team.all.win}V ${team.all.draw}E ${team.all.lose}D)`;
+}
+
+loadGames();
+</script>
