@@ -76,45 +76,45 @@
         const div = document.createElement('div');
         div.className = 'game';
 
-        const isBackup = game.recommendation.includes('backup');
+        const isBackup = game.recommendation?.includes('backup');
 
-        const homeStats = game.stats.home;
-        const awayStats = game.stats.away;
+        const homeStats = game.stats?.home || {};
+        const awayStats = game.stats?.away || {};
 
-        const homeMatches = game.last5Matches.home?.map(match =>
-          `• ${match.date} — ${match.homeTeam} ${match.homeGoals} x ${match.awayGoals} ${match.awayTeam} (${match.venue})`
-        ).join('<br>') || '';
+        const homeMatches = game.last5Matches?.home?.map(match =>
+          `• ${match.date || '-'} — ${match.homeTeam || '-'} ${match.homeGoals ?? '-'} x ${match.awayGoals ?? '-'} ${match.awayTeam || '-'} (${match.venue || '-'})`
+        ).join('<br>') || 'Sem dados';
 
-        const awayMatches = game.last5Matches.away?.map(match =>
-          `• ${match.date} — ${match.homeTeam} ${match.homeGoals} x ${match.awayGoals} ${match.awayTeam} (${match.venue})`
-        ).join('<br>') || '';
+        const awayMatches = game.last5Matches?.away?.map(match =>
+          `• ${match.date || '-'} — ${match.homeTeam || '-'} ${match.homeGoals ?? '-'} x ${match.awayGoals ?? '-'} ${match.awayTeam || '-'} (${match.venue || '-'})`
+        ).join('<br>') || 'Sem dados';
 
         div.innerHTML = `
           <div class="teams">
-            <img src="${game.homeLogo}" class="logo"> ${game.homeTeam}
+            <img src="${game.homeLogo || ''}" class="logo"> ${game.homeTeam}
             vs
-            <img src="${game.awayLogo}" class="logo"> ${game.awayTeam}
+            <img src="${game.awayLogo || ''}" class="logo"> ${game.awayTeam}
           </div>
-          <div class="time">🕒 Horário: ${game.time}</div>
+          <div class="time">🕒 Horário: ${game.time || '-'}</div>
           <hr>
           <div class="stats-container">
             <div class="stats">
               <strong>${game.homeTeam} - Médias:</strong><br>
-              • Gols feitos: ${homeStats.goalsFor}<br>
-              • Gols sofridos: ${homeStats.goalsAgainst}<br>
-              • Chutes: ${homeStats.shots}<br>
-              • Chutes ao gol: ${homeStats.shotsOn}<br>
-              • Escanteios: ${homeStats.corners}<br>
-              • Cartões: ${homeStats.cards}
+              • Gols feitos: ${homeStats.goalsFor ?? '-'}<br>
+              • Gols sofridos: ${homeStats.goalsAgainst ?? '-'}<br>
+              • Chutes: ${homeStats.shots ?? '-'}<br>
+              • Chutes ao gol: ${homeStats.shotsOn ?? '-'}<br>
+              • Escanteios: ${homeStats.corners ?? '-'}<br>
+              • Cartões: ${homeStats.cards ?? '-'}
             </div>
             <div class="stats">
               <strong>${game.awayTeam} - Médias:</strong><br>
-              • Gols feitos: ${awayStats.goalsFor}<br>
-              • Gols sofridos: ${awayStats.goalsAgainst}<br>
-              • Chutes: ${awayStats.shots}<br>
-              • Chutes ao gol: ${awayStats.shotsOn}<br>
-              • Escanteios: ${awayStats.corners}<br>
-              • Cartões: ${awayStats.cards}
+              • Gols feitos: ${awayStats.goalsFor ?? '-'}<br>
+              • Gols sofridos: ${awayStats.goalsAgainst ?? '-'}<br>
+              • Chutes: ${awayStats.shots ?? '-'}<br>
+              • Chutes ao gol: ${awayStats.shotsOn ?? '-'}<br>
+              • Escanteios: ${awayStats.corners ?? '-'}<br>
+              • Cartões: ${awayStats.cards ?? '-'}
             </div>
           </div>
           <div class="recent-matches">
