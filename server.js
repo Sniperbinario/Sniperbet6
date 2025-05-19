@@ -1,4 +1,4 @@
-// server.js atualizado com fallback de porcentagens de previsão (0% ao invés de '-')
+// server.js completo com sugestões de aposta inteligentes e somente jogos encerrados
 
 const express = require('express');
 const axios = require('axios');
@@ -31,7 +31,7 @@ app.get('/games', async (req, res) => {
         }
       });
 
-      const fixtures = fixtureRes.data.response;
+      const fixtures = fixtureRes.data.response.filter(f => f.fixture.status.short === 'FT');
 
       for (const match of fixtures) {
         const fixtureId = match.fixture.id;
@@ -48,6 +48,8 @@ app.get('/games', async (req, res) => {
         const standings = await getStandings(apiKey, matchLeagueId);
         const odds = await getOdds(apiKey, fixtureId);
 
+        const sugestao = gerarSugestao(homeStats, awayStats, prediction, odds, match.teams.home.name, match.teams.away.name);
+
         finalGames.push({
           fixtureId,
           homeTeam: match.teams.home.name,
@@ -55,13 +57,14 @@ app.get('/games', async (req, res) => {
           homeLogo: match.teams.home.logo,
           awayLogo: match.teams.away.logo,
           time: new Date(match.fixture.date).toLocaleTimeString('pt-BR', {
-            timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit',
+            timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit'
           }),
           stats: { home: homeStats, away: awayStats },
           last5Matches: { home: homeLast5, away: awayLast5 },
           prediction,
           standings,
           odds,
+          sugestao,
           recommendation: homeStats.shots > 5 && homeStats.goalsFor > 1 ? 'Vale apostar' : 'Não vale apostar'
         });
       }
@@ -76,6 +79,28 @@ app.get('/games', async (req, res) => {
 });
 
 function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+function gerarSugestao(homeStats, awayStats, prediction, odds, homeName, awayName) {
+  const totalGols = parseFloat(homeStats.goalsFor) + parseFloat(awayStats.goalsFor);
+  const overChance = odds?.over25 && parseFloat(odds.over25) <= 1.80;
+  const bttsChance = odds?.btts && parseFloat(odds.btts) <= 1.85;
+  const predHome = parseInt(prediction?.win_percent?.home || '0');
+  const predAway = parseInt(prediction?.win_percent?.away || '0');
+
+  if (totalGols >= 3 && overChance) {
+    return '🎯 Sugestão de aposta: Over 2.5 gols';
+  }
+  if (bttsChance) {
+    return '💥 Sugestão de aposta: Ambos marcam (BTTS)';
+  }
+  if (predHome >= 60) {
+    return `✅ Sugestão de aposta: Vitória do ${homeName}`;
+  }
+  if (predAway >= 60) {
+    return `✅ Sugestão de aposta: Vitória do ${awayName}`;
+  }
+  return '⚠️ Nenhuma sugestão clara baseada nos dados';
+}
 
 async function getTeamStats(apiKey, teamId, leagueId) {
   try {
