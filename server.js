@@ -1,14 +1,19 @@
+// server.js otimizado com Redis (cache) + fallback por liga caso a API falhe ou retorne vazio
+
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const Redis = require('ioredis');
 require('dotenv').config();
 
 const app = express();
+const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.static('public'));
 
+const leagueIds = [71, 72, 13, 39, 140, 135, 130]; // Ligas importantes
 const season = 2024;
 
 app.get('/games', async (req, res) => {
@@ -16,46 +21,62 @@ app.get('/games', async (req, res) => {
   const brDate = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   const [day, month, year] = brDate.split('/');
   const today = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  const cacheKey = `games-${today}`;
+
+  // Tenta pegar do cache antes
+  const cached = await redis.get(cacheKey);
+  if (cached) {
+    return res.json(JSON.parse(cached));
+  }
 
   let finalGames = [];
 
   try {
-    const fixtureRes = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?date=${today}`, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
+    for (const leagueId of leagueIds) {
+      try {
+        const fixtureRes = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?date=${today}&league=${leagueId}&season=${season}`, {
+          headers: {
+            'X-RapidAPI-Key': apiKey,
+            'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
+          }
+        });
+
+        const fixtures = fixtureRes.data.response.filter(f => f.fixture.status.short === "FT");
+
+        for (const match of fixtures) {
+          const fixtureId = match.fixture.id;
+          const homeId = match.teams.home.id;
+          const awayId = match.teams.away.id;
+          const matchLeagueId = match.league.id;
+
+          const homeStats = await getTeamStats(apiKey, homeId, matchLeagueId);
+          const awayStats = await getTeamStats(apiKey, awayId, matchLeagueId);
+          const homeLast5 = await getLastMatches(apiKey, homeId);
+          const awayLast5 = await getLastMatches(apiKey, awayId);
+
+          finalGames.push({
+            fixtureId,
+            homeTeam: match.teams.home.name,
+            awayTeam: match.teams.away.name,
+            homeLogo: match.teams.home.logo,
+            awayLogo: match.teams.away.logo,
+            time: new Date(match.fixture.date).toLocaleTimeString('pt-BR', {
+              timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit'
+            }),
+            stats: { home: homeStats, away: awayStats },
+            last5Matches: { home: homeLast5, away: awayLast5 },
+            recommendation: gerarRecomendacao(homeStats, awayStats),
+            fallback: false
+          });
+        }
+      } catch (ligaErro) {
+        console.warn(`⚠️ Falha ao puxar liga ${leagueId}: ${ligaErro.message}`);
       }
-    });
-
-    const fixtures = fixtureRes.data.response; // NÃO FILTRA MAIS POR "FT"
-
-    for (const match of fixtures) {
-      const fixtureId = match.fixture.id;
-      const homeId = match.teams.home.id;
-      const awayId = match.teams.away.id;
-      const matchLeagueId = match.league.id;
-
-      const homeStats = await getTeamStats(apiKey, homeId, matchLeagueId);
-      const awayStats = await getTeamStats(apiKey, awayId, matchLeagueId);
-      const homeLast5 = await getLastMatches(apiKey, homeId);
-      const awayLast5 = await getLastMatches(apiKey, awayId);
-
-      finalGames.push({
-        fixtureId,
-        homeTeam: match.teams.home.name,
-        awayTeam: match.teams.away.name,
-        homeLogo: match.teams.home.logo,
-        awayLogo: match.teams.away.logo,
-        time: new Date(match.fixture.date).toLocaleTimeString('pt-BR', {
-          timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit'
-        }),
-        stats: { home: homeStats, away: awayStats },
-        last5Matches: { home: homeLast5, away: awayLast5 },
-        recommendation: gerarRecomendacao(homeStats, awayStats)
-      });
     }
 
-    res.json(finalGames.length > 0 ? finalGames : []);
+    // Cache resultado por 10 minutos
+    await redis.set(cacheKey, JSON.stringify(finalGames), 'EX', 600);
+    res.json(finalGames);
   } catch (err) {
     console.error('Erro geral:', err.message);
     res.json([]);
