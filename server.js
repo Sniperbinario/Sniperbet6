@@ -1,4 +1,4 @@
-// server.js — corrigido: data no fuso de Brasília e média de chutes com fallback
+// server.js — média de chutes calculada manualmente se não vier pela API
 
 const express = require('express');
 const axios = require('axios');
@@ -91,18 +91,55 @@ async function getTeamStats(apiKey, teamId, leagueId) {
 
     const stats = res.data.response;
 
+    const manual = await calculateShotsAverage(apiKey, teamId);
+
     return {
       goalsFor: stats.goals?.for?.average?.total ?? 0,
       goalsAgainst: stats.goals?.against?.average?.total ?? 0,
-      shots: stats.shots?.total?.average ?? 0,
-      shotsOn: stats.shots?.on?.average ?? 0,
+      shots: stats.shots?.total?.average ?? manual.shots,
+      shotsOn: stats.shots?.on?.average ?? manual.shotsOn,
       corners: (Math.random() * 6).toFixed(1),
       cards: (Math.random() * 4).toFixed(1)
     };
   } catch (err) {
+    const manual = await calculateShotsAverage(apiKey, teamId);
     return {
-      goalsFor: 0, goalsAgainst: 0, shots: 0, shotsOn: 0, corners: 0, cards: 0
+      goalsFor: 0, goalsAgainst: 0, shots: manual.shots, shotsOn: manual.shotsOn, corners: 0, cards: 0
     };
+  }
+}
+
+async function calculateShotsAverage(apiKey, teamId) {
+  try {
+    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${teamId}&last=5`, {
+      headers: {
+        'X-RapidAPI-Key': apiKey,
+        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
+      }
+    });
+
+    const matches = res.data.response;
+    let totalShots = 0;
+    let totalShotsOn = 0;
+    let count = 0;
+
+    for (const match of matches) {
+      const stats = match.statistics?.find(s => s.team?.id === teamId);
+      if (stats) {
+        const shots = stats.statistics?.find(s => s.type === 'Total Shots')?.value ?? 0;
+        const shotsOn = stats.statistics?.find(s => s.type === 'Shots on Goal')?.value ?? 0;
+        totalShots += shots;
+        totalShotsOn += shotsOn;
+        count++;
+      }
+    }
+
+    return {
+      shots: count > 0 ? (totalShots / count).toFixed(1) : 0,
+      shotsOn: count > 0 ? (totalShotsOn / count).toFixed(1) : 0
+    };
+  } catch (err) {
+    return { shots: 0, shotsOn: 0 };
   }
 }
 
