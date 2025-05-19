@@ -1,8 +1,5 @@
-// server.js — escanteios agora aceitam variações (Corner Kicks ou Total corners)
-
 const express = require('express');
 const axios = require('axios');
-const cheerio = require('cheerio');
 const cors = require('cors');
 require('dotenv').config();
 
@@ -12,9 +9,8 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
-const leagueIds = [71, 72, 13, 39, 140, 135];
+const leagueIds = [71, 72, 13, 39, 140, 135]; // Série A, B, Liberta, Premier, La Liga, Serie A ITA
 const season = 2024;
-
 app.get('/games', async (req, res) => {
   const apiKey = process.env.API_KEY;
   const brDate = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
@@ -35,6 +31,7 @@ app.get('/games', async (req, res) => {
       const fixtures = fixtureRes.data.response;
 
       for (const match of fixtures) {
+        const fixtureId = match.fixture.id;
         const homeId = match.teams.home.id;
         const awayId = match.teams.away.id;
         const matchLeagueId = match.league.id;
@@ -44,7 +41,12 @@ app.get('/games', async (req, res) => {
         const homeLast5 = await getLastMatches(apiKey, homeId);
         const awayLast5 = await getLastMatches(apiKey, awayId);
 
+        const prediction = await getPrediction(apiKey, fixtureId);
+        const standings = await getStandings(apiKey, matchLeagueId);
+        const odds = await getOdds(apiKey, fixtureId);
+
         finalGames.push({
+          fixtureId,
           homeTeam: match.teams.home.name,
           awayTeam: match.teams.away.name,
           homeLogo: match.teams.home.logo,
@@ -52,32 +54,29 @@ app.get('/games', async (req, res) => {
           time: new Date(match.fixture.date).toLocaleTimeString('pt-BR', {
             timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit',
           }),
-          stats: {
-            home: homeStats,
-            away: awayStats
-          },
-          last5Matches: {
-            home: homeLast5,
-            away: awayLast5
-          },
+          stats: { home: homeStats, away: awayStats },
+          last5Matches: { home: homeLast5, away: awayLast5 },
+          prediction,
+          standings,
+          odds,
           recommendation: homeStats.shots > 5 && homeStats.goalsFor > 1 ? 'Vale apostar' : 'Não vale apostar'
         });
       }
     }
 
     if (finalGames.length < 10) {
-      console.log('⚠️ Poucos jogos retornados pela API. Ativando backup Cheerio (Sofascore)...');
-      const backupGames = await getGamesFromSofascore();
-      return res.json(finalGames.concat(backupGames));
+      return res.json([]);
     }
 
     res.json(finalGames);
   } catch (err) {
-    console.error('Erro na API principal:', err.message);
-    const backupGames = await getGamesFromSofascore();
-    return res.json(backupGames);
+    console.error('Erro:', err.message);
+    res.json([]);
   }
 });
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 async function getTeamStats(apiKey, teamId, leagueId) {
   try {
@@ -102,13 +101,14 @@ async function getTeamStats(apiKey, teamId, leagueId) {
   } catch (err) {
     const manual = await calculateShotsAndCorners(apiKey, teamId);
     return {
-      goalsFor: 0, goalsAgainst: 0, shots: manual.shots, shotsOn: manual.shotsOn, corners: manual.corners, cards: 0
+      goalsFor: 0,
+      goalsAgainst: 0,
+      shots: manual.shots,
+      shotsOn: manual.shotsOn,
+      corners: manual.corners,
+      cards: 0
     };
   }
-}
-
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function calculateShotsAndCorners(apiKey, teamId) {
@@ -140,13 +140,13 @@ async function calculateShotsAndCorners(apiKey, teamId) {
       const teamStats = allStats.find(s => s.team.id === teamId);
 
       if (teamStats) {
-        const total = teamStats.statistics.find(s => s.type === 'Total Shots')?.value ?? 0;
-        const onTarget = teamStats.statistics.find(s => s.type === 'Shots on Goal')?.value ?? 0;
+        const shots = teamStats.statistics.find(s => s.type === 'Total Shots')?.value ?? 0;
+        const shotsOn = teamStats.statistics.find(s => s.type === 'Shots on Goal')?.value ?? 0;
         const cornersEntry = teamStats.statistics.find(s => ['Total corners', 'Corner Kicks'].includes(s.type));
         const corners = cornersEntry?.value ?? 0;
 
-        totalShots += total;
-        totalShotsOn += onTarget;
+        totalShots += shots;
+        totalShotsOn += shotsOn;
         totalCorners += corners;
         count++;
       }
@@ -161,7 +161,84 @@ async function calculateShotsAndCorners(apiKey, teamId) {
     return { shots: '-', shotsOn: '-', corners: '-' };
   }
 }
+async function getPrediction(apiKey, fixtureId) {
+  try {
+    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/predictions?fixture=${fixtureId}`, {
+      headers: {
+        'X-RapidAPI-Key': apiKey,
+        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
+      }
+    });
 
+    const pred = res.data.response?.[0];
+    return {
+      advice: pred?.predictions?.advice ?? '-',
+      win_percent: {
+        home: pred?.teams?.home?.win ?? '-',
+        draw: pred?.teams?.draw ?? '-',
+        away: pred?.teams?.away?.win ?? '-'
+      }
+    };
+  } catch (err) {
+    return {
+      advice: '-',
+      win_percent: { home: '-', draw: '-', away: '-' }
+    };
+  }
+}
+
+async function getStandings(apiKey, leagueId) {
+  try {
+    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/standings?league=${leagueId}&season=2024`, {
+      headers: {
+        'X-RapidAPI-Key': apiKey,
+        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
+      }
+    });
+
+    return res.data.response?.[0]?.league?.standings?.[0] ?? [];
+  } catch (err) {
+    return [];
+  }
+}
+
+async function getOdds(apiKey, fixtureId) {
+  try {
+    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/odds?fixture=${fixtureId}&bookmaker=6`, {
+      headers: {
+        'X-RapidAPI-Key': apiKey,
+        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
+      }
+    });
+
+    const bets = res.data.response?.[0]?.bookmakers?.[0]?.bets ?? [];
+    const odds = {};
+
+    for (const bet of bets) {
+      if (bet.name === 'Match Winner') {
+        bet.values.forEach(v => {
+          if (v.value === 'Home') odds.home = v.odd;
+          if (v.value === 'Draw') odds.draw = v.odd;
+          if (v.value === 'Away') odds.away = v.odd;
+        });
+      }
+
+      if (bet.name === 'Over/Under') {
+        const overUnder = bet.values.find(v => v.value.includes('Over 2.5'));
+        odds.over25 = overUnder?.odd;
+      }
+
+      if (bet.name === 'Both Teams To Score') {
+        const btts = bet.values.find(v => v.value === 'Yes');
+        odds.btts = btts?.odd;
+      }
+    }
+
+    return odds;
+  } catch (err) {
+    return {};
+  }
+}
 async function getLastMatches(apiKey, teamId) {
   try {
     const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${teamId}&last=5`, {
@@ -177,43 +254,9 @@ async function getLastMatches(apiKey, teamId) {
       awayTeam: match.teams.away.name,
       homeGoals: match.goals.home,
       awayGoals: match.goals.away,
-      venue: match.teams.home.id === teamId ? 'Casa' : 'Fora',
+      venue: match.teams.home.id === teamId ? 'Casa' : 'Fora'
     }));
   } catch (err) {
-    return [];
-  }
-}
-
-async function getGamesFromSofascore() {
-  try {
-    const { data } = await axios.get('https://www.sofascore.com/');
-    const $ = cheerio.load(data);
-    const games = [];
-
-    $('.event-row__name').each((_, el) => {
-      const home = $(el).find('.event-row__name--home').text().trim();
-      const away = $(el).find('.event-row__name--away').text().trim();
-
-      if (home && away) {
-        games.push({
-          homeTeam: home,
-          awayTeam: away,
-          time: 'Horário não disponível',
-          homeLogo: '',
-          awayLogo: '',
-          stats: {
-            home: { goalsFor: '-', goalsAgainst: '-', shots: '-', shotsOn: '-', corners: '-', cards: '-' },
-            away: { goalsFor: '-', goalsAgainst: '-', shots: '-', shotsOn: '-', corners: '-', cards: '-' }
-          },
-          last5Matches: { home: [], away: [] },
-          recommendation: '⚠️ Dados via backup Sofascore'
-        });
-      }
-    });
-
-    return games;
-  } catch (err) {
-    console.error('Erro no scraping Sofascore:', err.message);
     return [];
   }
 }
