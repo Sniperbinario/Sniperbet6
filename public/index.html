@@ -1,79 +1,114 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>SniperBet - Jogos do Dia</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SniperBet — Jogos do Dia</title>
   <style>
     body {
-      background-color: #0f0f0f;
-      color: #e0e0e0;
+      margin: 0;
+      background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+      color: #f0f0f0;
       font-family: 'Segoe UI', sans-serif;
-      padding: 20px;
+      padding: 1rem;
     }
+
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 2rem;
+    }
+
     .game {
-      background-color: #1e1e1e;
-      border-radius: 10px;
-      padding: 15px;
-      margin-bottom: 20px;
-      box-shadow: 0 0 10px #000;
+      background-color: #1c1c1c;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 30px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
     }
+
     .teams {
-      font-size: 18px;
+      font-size: 1.2rem;
       font-weight: bold;
-      margin-bottom: 5px;
+      margin-bottom: 0.3rem;
     }
+
     .logo {
-      height: 24px;
+      height: 22px;
       vertical-align: middle;
-      margin-right: 6px;
+      margin-right: 5px;
     }
+
     .time {
-      font-size: 14px;
-      margin-bottom: 10px;
+      font-size: 0.9rem;
       color: #ccc;
+      margin-bottom: 1rem;
     }
+
     .stats-container {
       display: flex;
-      justify-content: space-between;
-      gap: 20px;
+      flex-direction: column;
+      gap: 1rem;
     }
-    .stats {
-      font-size: 14px;
-      margin-top: 10px;
+
+    @media (min-width: 768px) {
+      .stats-container {
+        flex-direction: row;
+        justify-content: space-between;
+      }
     }
+
+    .stats, .recent-matches, .advanced {
+      font-size: 0.95rem;
+    }
+
     .recent-matches {
+      margin-top: 1rem;
       font-style: italic;
-      margin-top: 15px;
     }
+
     .rec {
-      margin-top: 10px;
       font-weight: bold;
+      margin-top: 1rem;
       color: #00ff88;
     }
+
     .rec-backup {
       color: #ffcc00;
     }
+
+    button.toggle {
+      background-color: #00ff88;
+      border: none;
+      color: #000;
+      padding: 8px 14px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 1rem;
+      transition: background 0.3s ease;
+    }
+
+    button.toggle:hover {
+      background-color: #00d177;
+    }
+
+    .advanced {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid #444;
+    }
+
     hr {
       border: 0;
-      border-top: 1px solid #333;
+      border-top: 1px solid #444;
       margin: 10px 0;
     }
-    .btn-advanced {
-      margin-top: 10px;
-      background-color: #00ff88;
-      color: #000;
+
+    .title-section {
       font-weight: bold;
-      border: none;
-      padding: 5px 10px;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    .advanced {
-      margin-top: 10px;
-      display: none;
-      font-size: 14px;
-      border-top: 1px solid #333;
-      padding-top: 10px;
+      margin-top: 0.5rem;
+      margin-bottom: 0.3rem;
     }
   </style>
 </head>
@@ -105,8 +140,14 @@
           `• ${match.date} — ${match.homeTeam} ${match.homeGoals} x ${match.awayGoals} ${match.awayTeam} (${match.venue})`
         ).join('<br>') || '';
 
-        const advId = `adv-${game.fixtureId}`;
+        const prediction = game.prediction || {};
+        const standings = game.standings || [];
+        const odds = game.odds || {};
 
+        const homeStanding = standings.find(t => t.team.name === game.homeTeam);
+        const awayStanding = standings.find(t => t.team.name === game.awayTeam);
+
+        const id = 'adv-' + game.fixtureId;
         div.innerHTML = `
           <div class="teams">
             <img src="${game.homeLogo}" class="logo"> ${game.homeTeam}
@@ -135,34 +176,27 @@
               • Cartões: ${awayStats.cards}
             </div>
           </div>
-
           <div class="recent-matches">
             <strong>Últimos 5 jogos de ${game.homeTeam}:</strong><br>${homeMatches}<br><br>
             <strong>Últimos 5 jogos de ${game.awayTeam}:</strong><br>${awayMatches}
           </div>
-
-          <button class="btn-advanced" onclick="toggleAdvanced('${advId}', this)">+ Ver análise avançada</button>
-
-          <div class="advanced" id="${advId}">
-            <p><strong>📊 Previsão:</strong><br>
-              • Palpite: ${game.prediction.advice}<br>
-              • ${game.homeTeam}: ${game.prediction.win_percent.home || '0'}%<br>
-              • Empate: ${game.prediction.win_percent.draw || '0'}%<br>
-              • ${game.awayTeam}: ${game.prediction.win_percent.away || '0'}%
-            </p>
-            <p><strong>🏆 Classificação:</strong><br>
-              ${getStanding(game.standings, game.homeTeam)}<br>
-              ${getStanding(game.standings, game.awayTeam)}
-            </p>
-            <p><strong>💵 Odds:</strong><br>
-              • ${game.homeTeam}: ${game.odds.home || '-'}<br>
-              • Empate: ${game.odds.draw || '-'}<br>
-              • ${game.awayTeam}: ${game.odds.away || '-'}<br>
-              • Over 2.5: ${game.odds.over25 || '-'}<br>
-              • Ambos marcam: ${game.odds.btts || '-'}
-            </p>
+          <button class="toggle" onclick="toggle('${id}')">+ Ver análise avançada</button>
+          <div class="advanced" id="${id}" style="display:none">
+            <div class="title-section">📊 Previsão:</div>
+            • Palpite: ${prediction.advice || '-'}<br>
+            • ${game.homeTeam}: ${prediction.win_percent?.home || '-'}%<br>
+            • Empate: ${prediction.win_percent?.draw || '-'}%<br>
+            • ${game.awayTeam}: ${prediction.win_percent?.away || '-'}%
+            <div class="title-section">🏆 Classificação:</div>
+            ${homeStanding ? `${game.homeTeam} - ${homeStanding.rank}º lugar | ${homeStanding.points} pts | ${homeStanding.all.played} jogos (${homeStanding.all.win}V ${homeStanding.all.draw}E ${homeStanding.all.lose}D)<br>` : ''}
+            ${awayStanding ? `${game.awayTeam} - ${awayStanding.rank}º lugar | ${awayStanding.points} pts | ${awayStanding.all.played} jogos (${awayStanding.all.win}V ${awayStanding.all.draw}E ${awayStanding.all.lose}D)<br>` : ''}
+            <div class="title-section">💵 Odds:</div>
+            • ${game.homeTeam}: ${odds.home || '-'}<br>
+            • Empate: ${odds.draw || '-'}<br>
+            • ${game.awayTeam}: ${odds.away || '-'}<br>
+            • Over 2.5: ${odds.over25 || '-'}<br>
+            • Ambos marcam: ${odds.btts || '-'}
           </div>
-
           <div class="rec ${isBackup ? 'rec-backup' : ''}">🔎 ${game.recommendation}</div>
         `;
 
@@ -170,17 +204,16 @@
       });
     }
 
-    function getStanding(standings, teamName) {
-      const team = standings.find(t => t.team.name === teamName);
-      if (!team) return `${teamName}: classificação não disponível`;
-      return `${team.team.name} - ${team.rank}º lugar | ${team.points} pts | ${team.all.played} jogos (${team.all.win}V ${team.all.draw}E ${team.all.lose}D)`;
-    }
-
-    function toggleAdvanced(id, btn) {
-      const div = document.getElementById(id);
-      const visible = div.style.display === 'block';
-      div.style.display = visible ? 'none' : 'block';
-      btn.innerText = visible ? '+ Ver análise avançada' : '− Esconder análise avançada';
+    function toggle(id) {
+      const el = document.getElementById(id);
+      const btn = el.previousElementSibling;
+      if (el.style.display === 'none') {
+        el.style.display = 'block';
+        btn.textContent = '– Esconder análise avançada';
+      } else {
+        el.style.display = 'none';
+        btn.textContent = '+ Ver análise avançada';
+      }
     }
 
     loadGames();
