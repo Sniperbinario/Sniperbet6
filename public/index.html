@@ -2,74 +2,64 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SniperBet — Jogos do Dia</title>
+  <title>SniperBet - Jogos do Dia</title>
   <style>
     body {
-      margin: 0;
       background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
       color: #f0f0f0;
       font-family: 'Segoe UI', sans-serif;
-      padding: 1rem;
+      margin: 0;
+      padding: 20px;
     }
 
     h1 {
-      text-align: center;
-      font-size: 2rem;
-      margin-bottom: 2rem;
+      font-size: 28px;
+      color: #fff;
+      margin-bottom: 30px;
     }
 
     .game {
-      background-color: #1c1c1c;
+      background-color: #1b1b1b;
       border-radius: 12px;
       padding: 20px;
       margin-bottom: 30px;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 0 10px #00000080;
     }
 
     .teams {
-      font-size: 1.2rem;
+      font-size: 20px;
       font-weight: bold;
-      margin-bottom: 0.3rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
     .logo {
-      height: 22px;
+      height: 28px;
       vertical-align: middle;
-      margin-right: 5px;
     }
 
     .time {
-      font-size: 0.9rem;
-      color: #ccc;
-      margin-bottom: 1rem;
+      font-size: 14px;
+      margin: 10px 0;
+      color: #aaa;
     }
 
     .stats-container {
       display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    @media (min-width: 768px) {
-      .stats-container {
-        flex-direction: row;
-        justify-content: space-between;
-      }
+      justify-content: space-between;
+      gap: 30px;
+      flex-wrap: wrap;
     }
 
     .stats, .recent-matches, .advanced {
-      font-size: 0.95rem;
-    }
-
-    .recent-matches {
-      margin-top: 1rem;
-      font-style: italic;
+      font-size: 14px;
+      margin-top: 15px;
     }
 
     .rec {
       font-weight: bold;
-      margin-top: 1rem;
+      margin-top: 15px;
       color: #00ff88;
     }
 
@@ -77,38 +67,37 @@
       color: #ffcc00;
     }
 
-    button.toggle {
-      background-color: #00ff88;
-      border: none;
+    .button {
+      display: inline-block;
+      background: #00ff88;
       color: #000;
-      padding: 8px 14px;
       font-weight: bold;
-      border-radius: 6px;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
       cursor: pointer;
-      margin-top: 1rem;
-      transition: background 0.3s ease;
+      margin-top: 15px;
+      transition: 0.3s;
     }
 
-    button.toggle:hover {
-      background-color: #00d177;
-    }
-
-    .advanced {
-      margin-top: 1rem;
-      padding-top: 1rem;
-      border-top: 1px solid #444;
+    .button:hover {
+      background: #00cc6e;
     }
 
     hr {
       border: 0;
       border-top: 1px solid #444;
-      margin: 10px 0;
+      margin: 15px 0;
     }
 
-    .title-section {
-      font-weight: bold;
-      margin-top: 0.5rem;
-      margin-bottom: 0.3rem;
+    @media (max-width: 768px) {
+      .stats-container {
+        flex-direction: column;
+      }
+
+      .stats {
+        margin-bottom: 15px;
+      }
     }
   </style>
 </head>
@@ -128,7 +117,6 @@
         div.className = 'game';
 
         const isBackup = game.recommendation.includes('backup');
-
         const homeStats = game.stats.home;
         const awayStats = game.stats.away;
 
@@ -140,14 +128,17 @@
           `• ${match.date} — ${match.homeTeam} ${match.homeGoals} x ${match.awayGoals} ${match.awayTeam} (${match.venue})`
         ).join('<br>') || '';
 
-        const prediction = game.prediction || {};
+        const predictions = game.prediction?.win_percent || {};
         const standings = game.standings || [];
-        const odds = game.odds || {};
-
         const homeStanding = standings.find(t => t.team.name === game.homeTeam);
         const awayStanding = standings.find(t => t.team.name === game.awayTeam);
+        const odds = game.odds || {};
 
-        const id = 'adv-' + game.fixtureId;
+        const homeClass = homeStanding ? `${homeStanding.rank}º lugar | ${homeStanding.points} pts | ${homeStanding.all.played} jogos (${homeStanding.all.win}V ${homeStanding.all.draw}E ${homeStanding.all.lose}D)` : '-';
+        const awayClass = awayStanding ? `${awayStanding.rank}º lugar | ${awayStanding.points} pts | ${awayStanding.all.played} jogos (${awayStanding.all.win}V ${awayStanding.all.draw}E ${awayStanding.all.lose}D)` : '-';
+
+        const predAdvice = game.prediction?.advice || '-';
+
         div.innerHTML = `
           <div class="teams">
             <img src="${game.homeLogo}" class="logo"> ${game.homeTeam}
@@ -180,40 +171,33 @@
             <strong>Últimos 5 jogos de ${game.homeTeam}:</strong><br>${homeMatches}<br><br>
             <strong>Últimos 5 jogos de ${game.awayTeam}:</strong><br>${awayMatches}
           </div>
-          <button class="toggle" onclick="toggle('${id}')">+ Ver análise avançada</button>
-          <div class="advanced" id="${id}" style="display:none">
-            <div class="title-section">📊 Previsão:</div>
-            • Palpite: ${prediction.advice || '-'}<br>
-            • ${game.homeTeam}: ${prediction.win_percent?.home || '-'}%<br>
-            • Empate: ${prediction.win_percent?.draw || '-'}%<br>
-            • ${game.awayTeam}: ${prediction.win_percent?.away || '-'}%
-            <div class="title-section">🏆 Classificação:</div>
-            ${homeStanding ? `${game.homeTeam} - ${homeStanding.rank}º lugar | ${homeStanding.points} pts | ${homeStanding.all.played} jogos (${homeStanding.all.win}V ${homeStanding.all.draw}E ${homeStanding.all.lose}D)<br>` : ''}
-            ${awayStanding ? `${game.awayTeam} - ${awayStanding.rank}º lugar | ${awayStanding.points} pts | ${awayStanding.all.played} jogos (${awayStanding.all.win}V ${awayStanding.all.draw}E ${awayStanding.all.lose}D)<br>` : ''}
-            <div class="title-section">💵 Odds:</div>
+          <button class="button" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'block' ? 'none' : 'block'">
+            ${isBackup ? '⚠️ Dados via backup' : '➕ Ver análise avançada'}
+          </button>
+          <div class="advanced" style="display:none">
+            <hr>
+            <strong>📊 Previsão:</strong><br>
+            • Palpite: ${predAdvice}<br>
+            • ${game.homeTeam}: ${predictions.home || '-'}%<br>
+            • Empate: ${predictions.draw || '-'}%<br>
+            • ${game.awayTeam}: ${predictions.away || '-'}%<br><br>
+
+            <strong>🏆 Classificação:</strong><br>
+            ${game.homeTeam} - ${homeClass}<br>
+            ${game.awayTeam} - ${awayClass}<br><br>
+
+            <strong>💵 Odds:</strong><br>
             • ${game.homeTeam}: ${odds.home || '-'}<br>
             • Empate: ${odds.draw || '-'}<br>
             • ${game.awayTeam}: ${odds.away || '-'}<br>
             • Over 2.5: ${odds.over25 || '-'}<br>
             • Ambos marcam: ${odds.btts || '-'}
           </div>
-          <div class="rec ${isBackup ? 'rec-backup' : ''}">🔎 ${game.recommendation}</div>
+          <div class="rec ${isBackup ? 'rec-backup' : ''}">🔍 ${game.recommendation}</div>
         `;
 
         container.appendChild(div);
       });
-    }
-
-    function toggle(id) {
-      const el = document.getElementById(id);
-      const btn = el.previousElementSibling;
-      if (el.style.display === 'none') {
-        el.style.display = 'block';
-        btn.textContent = '– Esconder análise avançada';
-      } else {
-        el.style.display = 'none';
-        btn.textContent = '+ Ver análise avançada';
-      }
     }
 
     loadGames();
