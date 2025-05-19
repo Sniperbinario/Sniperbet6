@@ -1,12 +1,10 @@
-// server.js completo com sugestões de aposta inteligentes e somente jogos encerrados
-
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.static('public'));
@@ -22,7 +20,8 @@ app.get('/games', async (req, res) => {
 
   let finalGames = [];
 
-  try {
+  async function getMatches(filtered = true) {
+    const list = [];
     for (const leagueId of leagueIds) {
       const fixtureRes = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?date=${today}&league=${leagueId}&season=${season}`, {
         headers: {
@@ -31,7 +30,10 @@ app.get('/games', async (req, res) => {
         }
       });
 
-      const fixtures = fixtureRes.data.response.filter(f => f.fixture.status.short === 'FT');
+      let fixtures = fixtureRes.data.response;
+      if (filtered) {
+        fixtures = fixtures.filter(match => match.fixture.status.short === 'FT'); // só encerrados
+      }
 
       for (const match of fixtures) {
         const fixtureId = match.fixture.id;
@@ -43,34 +45,39 @@ app.get('/games', async (req, res) => {
         const awayStats = await getTeamStats(apiKey, awayId, matchLeagueId);
         const homeLast5 = await getLastMatches(apiKey, homeId);
         const awayLast5 = await getLastMatches(apiKey, awayId);
-
         const prediction = await getPrediction(apiKey, fixtureId);
         const standings = await getStandings(apiKey, matchLeagueId);
         const odds = await getOdds(apiKey, fixtureId);
 
-        const sugestao = gerarSugestao(homeStats, awayStats, prediction, odds, match.teams.home.name, match.teams.away.name);
-
-        finalGames.push({
+        list.push({
           fixtureId,
           homeTeam: match.teams.home.name,
           awayTeam: match.teams.away.name,
           homeLogo: match.teams.home.logo,
           awayLogo: match.teams.away.logo,
           time: new Date(match.fixture.date).toLocaleTimeString('pt-BR', {
-            timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit'
+            timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit',
           }),
           stats: { home: homeStats, away: awayStats },
           last5Matches: { home: homeLast5, away: awayLast5 },
           prediction,
           standings,
           odds,
-          sugestao,
           recommendation: homeStats.shots > 5 && homeStats.goalsFor > 1 ? 'Vale apostar' : 'Não vale apostar'
         });
       }
     }
+    return list;
+  }
 
-    if (finalGames.length < 1) return res.json([]);
+  try {
+    finalGames = await getMatches(true); // só jogos encerrados
+
+    if (finalGames.length === 0) {
+      console.log('⚠️ Nenhum jogo encerrado. Buscando jogos ao vivo...');
+      finalGames = await getMatches(false); // todos os jogos
+    }
+
     res.json(finalGames);
   } catch (err) {
     console.error('Erro:', err.message);
@@ -78,28 +85,8 @@ app.get('/games', async (req, res) => {
   }
 });
 
-function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-
-function gerarSugestao(homeStats, awayStats, prediction, odds, homeName, awayName) {
-  const totalGols = parseFloat(homeStats.goalsFor) + parseFloat(awayStats.goalsFor);
-  const overChance = odds?.over25 && parseFloat(odds.over25) <= 1.80;
-  const bttsChance = odds?.btts && parseFloat(odds.btts) <= 1.85;
-  const predHome = parseInt(prediction?.win_percent?.home || '0');
-  const predAway = parseInt(prediction?.win_percent?.away || '0');
-
-  if (totalGols >= 3 && overChance) {
-    return '🎯 Sugestão de aposta: Over 2.5 gols';
-  }
-  if (bttsChance) {
-    return '💥 Sugestão de aposta: Ambos marcam (BTTS)';
-  }
-  if (predHome >= 60) {
-    return `✅ Sugestão de aposta: Vitória do ${homeName}`;
-  }
-  if (predAway >= 60) {
-    return `✅ Sugestão de aposta: Vitória do ${awayName}`;
-  }
-  return '⚠️ Nenhuma sugestão clara baseada nos dados';
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function getTeamStats(apiKey, teamId, leagueId) {
@@ -110,8 +97,10 @@ async function getTeamStats(apiKey, teamId, leagueId) {
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
       }
     });
+
     const stats = res.data.response;
     const manual = await calculateShotsAndCorners(apiKey, teamId);
+
     return {
       goalsFor: stats.goals?.for?.average?.total ?? 0,
       goalsAgainst: stats.goals?.against?.average?.total ?? 0,
@@ -122,7 +111,14 @@ async function getTeamStats(apiKey, teamId, leagueId) {
     };
   } catch {
     const manual = await calculateShotsAndCorners(apiKey, teamId);
-    return { goalsFor: 0, goalsAgainst: 0, shots: manual.shots, shotsOn: manual.shotsOn, corners: manual.corners, cards: 0 };
+    return {
+      goalsFor: 0,
+      goalsAgainst: 0,
+      shots: manual.shots,
+      shotsOn: manual.shotsOn,
+      corners: manual.corners,
+      cards: 0
+    };
   }
 }
 
@@ -134,8 +130,10 @@ async function calculateShotsAndCorners(apiKey, teamId) {
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
       }
     });
+
     const fixtures = res.data.response;
     let totalShots = 0, totalShotsOn = 0, totalCorners = 0, count = 0;
+
     for (const match of fixtures) {
       await delay(500);
       const fixtureId = match.fixture.id;
@@ -145,6 +143,7 @@ async function calculateShotsAndCorners(apiKey, teamId) {
           'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
         }
       });
+
       const allStats = statsRes.data.response;
       const teamStats = allStats.find(s => s.team.id === teamId);
       if (teamStats) {
@@ -152,12 +151,14 @@ async function calculateShotsAndCorners(apiKey, teamId) {
         const shotsOn = teamStats.statistics.find(s => s.type === 'Shots on Goal')?.value ?? 0;
         const cornersEntry = teamStats.statistics.find(s => ['Total corners', 'Corner Kicks', 'Corners'].includes(s.type));
         const corners = cornersEntry?.value ?? 0;
+
         totalShots += shots;
         totalShotsOn += shotsOn;
         totalCorners += corners;
         count++;
       }
     }
+
     return {
       shots: count ? (totalShots / count).toFixed(1) : '-',
       shotsOn: count ? (totalShotsOn / count).toFixed(1) : '-',
@@ -176,6 +177,7 @@ async function getPrediction(apiKey, fixtureId) {
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
       }
     });
+
     const pred = res.data.response?.[0];
     return {
       advice: pred?.predictions?.advice ?? '-',
@@ -198,6 +200,7 @@ async function getStandings(apiKey, leagueId) {
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
       }
     });
+
     return res.data.response?.[0]?.league?.standings?.[0] ?? [];
   } catch {
     return [];
@@ -212,8 +215,10 @@ async function getOdds(apiKey, fixtureId) {
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
       }
     });
+
     const bets = res.data.response?.[0]?.bookmakers?.[0]?.bets ?? [];
     const odds = {};
+
     for (const bet of bets) {
       if (bet.name === 'Match Winner') {
         bet.values.forEach(v => {
@@ -222,15 +227,18 @@ async function getOdds(apiKey, fixtureId) {
           if (v.value === 'Away') odds.away = v.odd;
         });
       }
+
       if (bet.name === 'Over/Under') {
         const overUnder = bet.values.find(v => v.value.includes('Over 2.5'));
         odds.over25 = overUnder?.odd;
       }
+
       if (bet.name === 'Both Teams To Score') {
         const btts = bet.values.find(v => v.value === 'Yes');
         odds.btts = btts?.odd;
       }
     }
+
     return odds;
   } catch {
     return {};
@@ -245,6 +253,7 @@ async function getLastMatches(apiKey, teamId) {
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
       }
     });
+
     return res.data.response.map(match => ({
       date: new Date(match.fixture.date).toLocaleDateString('pt-BR'),
       homeTeam: match.teams.home.name,
