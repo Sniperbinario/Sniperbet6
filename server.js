@@ -1,4 +1,4 @@
-// server.js — corrigido para garantir que leagueId correto seja enviado nas estatísticas
+// server.js — ajustado para ativar backup se menos de 10 jogos forem carregados da API
 
 const express = require('express');
 const axios = require('axios');
@@ -62,10 +62,10 @@ app.get('/games', async (req, res) => {
       }
     }
 
-    if (finalGames.length === 0) {
-      console.log('⚠️ Nenhum jogo retornado pela API. Ativando backup Cheerio (Sofascore)...');
+    if (finalGames.length < 10) {
+      console.log('⚠️ Poucos jogos retornados pela API. Ativando backup Cheerio (Sofascore)...');
       const backupGames = await getGamesFromSofascore();
-      return res.json(backupGames);
+      return res.json(finalGames.concat(backupGames));
     }
 
     res.json(finalGames);
