@@ -1,4 +1,4 @@
-// server.js — escanteios reais + título corrigido
+// server.js — escanteios agora aceitam variações (Corner Kicks ou Total corners)
 
 const express = require('express');
 const axios = require('axios');
@@ -142,7 +142,9 @@ async function calculateShotsAndCorners(apiKey, teamId) {
       if (teamStats) {
         const total = teamStats.statistics.find(s => s.type === 'Total Shots')?.value ?? 0;
         const onTarget = teamStats.statistics.find(s => s.type === 'Shots on Goal')?.value ?? 0;
-        const corners = teamStats.statistics.find(s => s.type === 'Total corners')?.value ?? 0;
+        const cornersEntry = teamStats.statistics.find(s => ['Total corners', 'Corner Kicks'].includes(s.type));
+        const corners = cornersEntry?.value ?? 0;
+
         totalShots += total;
         totalShotsOn += onTarget;
         totalCorners += corners;
@@ -151,12 +153,12 @@ async function calculateShotsAndCorners(apiKey, teamId) {
     }
 
     return {
-      shots: count > 0 ? (totalShots / count).toFixed(1) : 0,
-      shotsOn: count > 0 ? (totalShotsOn / count).toFixed(1) : 0,
-      corners: count > 0 ? (totalCorners / count).toFixed(1) : 0
+      shots: count > 0 ? (totalShots / count).toFixed(1) : '-',
+      shotsOn: count > 0 ? (totalShotsOn / count).toFixed(1) : '-',
+      corners: count > 0 ? (totalCorners / count).toFixed(1) : '-'
     };
   } catch (err) {
-    return { shots: 0, shotsOn: 0, corners: 0 };
+    return { shots: '-', shotsOn: '-', corners: '-' };
   }
 }
 
