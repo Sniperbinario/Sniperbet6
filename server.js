@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
-const leagueIds = [71, 72, 13, 39, 140, 135, 130];
+const leagueIds = [71, 72, 13, 39, 140, 135, 130]; // Inclui Brasileirão A e B, Libertadores, Premier League, La Liga, Serie A ITA e Torneio Betano Argentino
 const season = 2024;
 
 app.get('/games', async (req, res) => {
@@ -41,7 +41,6 @@ app.get('/games', async (req, res) => {
         const awayStats = await getTeamStats(apiKey, awayId, matchLeagueId);
         const homeLast5 = await getLastMatches(apiKey, homeId);
         const awayLast5 = await getLastMatches(apiKey, awayId);
-
         const prediction = await getPrediction(apiKey, fixtureId);
         const standings = await getStandings(apiKey, matchLeagueId);
         const odds = await getOdds(apiKey, fixtureId);
@@ -77,16 +76,24 @@ function delay(ms) {
 }
 
 function gerarRecomendacao(home, away) {
-  if (home.shots >= 10 && away.shots >= 10 && home.corners >= 4 && away.corners >= 4) {
-    return '🏆 Aposta sugerida: Over escanteios';
-  }
-  if (home.goalsFor > 2 || away.goalsFor > 2) {
+  const mediaGols = (parseFloat(home.goalsFor) + parseFloat(away.goalsFor)) / 2;
+  const mediaChutes = (parseFloat(home.shots) + parseFloat(away.shots)) / 2;
+  const mediaChutesGol = (parseFloat(home.shotsOn) + parseFloat(away.shotsOn)) / 2;
+  const mediaEscanteios = (parseFloat(home.corners) + parseFloat(away.corners)) / 2;
+
+  if (mediaGols >= 1.8 && mediaChutesGol >= 6) {
     return '🔥 Aposta sugerida: Over 2.5 gols';
   }
-  if (home.shotsOn >= 5 && away.shotsOn >= 5) {
+  if (mediaGols >= 1.5 && mediaChutesGol >= 5) {
     return '💡 Aposta sugerida: Ambas marcam';
   }
-  return '🤔 Não recomendado apostar';
+  if (mediaEscanteios >= 9 && mediaChutes >= 20) {
+    return '🏆 Aposta sugerida: Over 9.5 escanteios';
+  }
+  if (mediaGols <= 1 && mediaChutesGol < 4) {
+    return '🚫 Evite apostas: tendência de poucos gols';
+  }
+  return '🤔 Nenhuma aposta clara identificada';
 }
 
 async function getTeamStats(apiKey, teamId, leagueId) {
@@ -145,13 +152,10 @@ async function calculateShotsAndCorners(apiKey, teamId) {
 
       const stats = statsRes.data.response.find(e => e.team.id === teamId);
       if (stats) {
-        const shots = stats.statistics.find(s => s.type === 'Total Shots')?.value ?? 0;
-        const shotsOn = stats.statistics.find(s => s.type === 'Shots on Goal')?.value ?? 0;
-        const corners = stats.statistics.find(s => ['Total corners', 'Corner Kicks', 'Corners'].includes(s.type))?.value ?? 0;
-
-        totalShots += shots;
-        totalShotsOn += shotsOn;
-        totalCorners += corners;
+        const get = (type) => stats.statistics.find(s => ['Total Shots', 'Shots on Goal', 'Corner Kicks', 'Total corners'].includes(s.type) && s.type.includes(type))?.value ?? 0;
+        totalShots += get('Shots');
+        totalShotsOn += get('Shots on Goal');
+        totalCorners += get('Corner');
         count++;
       }
     }
