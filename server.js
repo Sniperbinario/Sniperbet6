@@ -9,8 +9,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
-// Inclui todos os campeonatos desejados
-const leagueIds = [71, 72, 13, 39, 140, 135, 130];
+const leagueIds = [71, 72, 13, 39, 140, 135, 130]; // Série A, Série B, Libertadores, Premier, La Liga, Serie A ITA, Betano Argentino
 const season = 2024;
 
 app.get('/games', async (req, res) => {
@@ -30,7 +29,7 @@ app.get('/games', async (req, res) => {
         }
       });
 
-      const fixtures = fixtureRes.data.response; // <-- Corrigido aqui (sem filtrar por status)
+      const fixtures = fixtureRes.data.response;
 
       for (const match of fixtures) {
         const fixtureId = match.fixture.id;
@@ -149,13 +148,13 @@ async function calculateShotsAndCorners(apiKey, teamId) {
 
       const stats = statsRes.data.response.find(e => e.team.id === teamId);
       if (stats) {
-        const get = (type) => stats.statistics.find(s =>
-          ['Total Shots', 'Shots on Goal', 'Corner Kicks', 'Total corners'].includes(s.type) && s.type.includes(type)
-        )?.value ?? 0;
+        const shots = stats.statistics.find(s => s.type === 'Total Shots')?.value ?? 0;
+        const shotsOn = stats.statistics.find(s => s.type === 'Shots on Goal')?.value ?? 0;
+        const corners = stats.statistics.find(s => ['Corner Kicks', 'Total corners', 'Corners'].includes(s.type))?.value ?? 0;
 
-        totalShots += get('Shots');
-        totalShotsOn += get('Shots on Goal');
-        totalCorners += get('Corner');
+        totalShots += shots;
+        totalShotsOn += shotsOn;
+        totalCorners += corners;
         count++;
       }
     }
