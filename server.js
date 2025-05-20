@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
-const leagueIds = [71, 72, 13, 39, 140, 135, 130]; // Série A, Série B, Libertadores, Premier, La Liga, Serie A ITA, Betano Argentino
+const leagueIds = [71, 72, 13, 39, 140, 135, 130];
 const season = 2024;
 
 app.get('/games', async (req, res) => {
@@ -105,7 +105,7 @@ async function getTeamStats(apiKey, teamId, leagueId) {
       shots: stats.shots?.total?.average ?? manual.shots,
       shotsOn: stats.shots?.on?.average ?? manual.shotsOn,
       corners: manual.corners,
-      cards: (Math.random() * 4).toFixed(1)
+      cards: manual.cards
     };
   } catch {
     const manual = await calculateShotsAndCorners(apiKey, teamId);
@@ -115,7 +115,7 @@ async function getTeamStats(apiKey, teamId, leagueId) {
       shots: manual.shots,
       shotsOn: manual.shotsOn,
       corners: manual.corners,
-      cards: 0
+      cards: manual.cards
     };
   }
 }
@@ -130,7 +130,7 @@ async function calculateShotsAndCorners(apiKey, teamId) {
     });
 
     const fixtures = res.data.response;
-    let totalShots = 0, totalShotsOn = 0, totalCorners = 0;
+    let totalShots = 0, totalShotsOn = 0, totalCorners = 0, totalCards = 0;
     let totalGoalsFor = 0, totalGoalsAgainst = 0;
     let count = 0;
 
@@ -148,13 +148,12 @@ async function calculateShotsAndCorners(apiKey, teamId) {
 
       const stats = statsRes.data.response.find(e => e.team.id === teamId);
       if (stats) {
-        const shots = stats.statistics.find(s => s.type === 'Total Shots')?.value ?? 0;
-        const shotsOn = stats.statistics.find(s => s.type === 'Shots on Goal')?.value ?? 0;
-        const corners = stats.statistics.find(s => ['Corner Kicks', 'Total corners', 'Corners'].includes(s.type))?.value ?? 0;
+        const get = (type) => stats.statistics.find(s => s.type.includes(type))?.value ?? 0;
 
-        totalShots += shots;
-        totalShotsOn += shotsOn;
-        totalCorners += corners;
+        totalShots += get('Total Shots');
+        totalShotsOn += get('Shots on Goal');
+        totalCorners += get('Corner');
+        totalCards += get('Yellow Cards') + get('Red Cards');
         count++;
       }
     }
@@ -164,10 +163,11 @@ async function calculateShotsAndCorners(apiKey, teamId) {
       goalsAgainst: (totalGoalsAgainst / count).toFixed(1),
       shots: (totalShots / count).toFixed(1),
       shotsOn: (totalShotsOn / count).toFixed(1),
-      corners: (totalCorners / count).toFixed(1)
+      corners: (totalCorners / count).toFixed(1),
+      cards: (totalCards / count).toFixed(1)
     };
   } catch {
-    return { goalsFor: '-', goalsAgainst: '-', shots: '-', shotsOn: '-', corners: '-' };
+    return { goalsFor: '-', goalsAgainst: '-', shots: '-', shotsOn: '-', corners: '-', cards: '-' };
   }
 }
 
