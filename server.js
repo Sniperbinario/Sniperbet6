@@ -9,8 +9,8 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
-// Inclui Série A (71), Série B (72), Liberta (13), Premier (39), La Liga (140), Serie A ITA (135), Betano Argentino (130), Copa do Brasil (73)
-const leagueIds = [71, 72, 13, 39, 140, 135, 130, 73];
+// Ligas incluídas
+const leagueIds = [71, 72, 13, 39, 140, 135, 130]; // Série A, B, Libertadores, Premier, La Liga, Série A ITA, Torneio Betano Argentino
 const season = 2024;
 
 app.get('/games', async (req, res) => {
@@ -30,7 +30,7 @@ app.get('/games', async (req, res) => {
         }
       });
 
-      const fixtures = fixtureRes.data.response;
+      const fixtures = fixtureRes.data.response; // Remove o filtro por status FT
 
       for (const match of fixtures) {
         const fixtureId = match.fixture.id;
@@ -42,7 +42,6 @@ app.get('/games', async (req, res) => {
         const awayStats = await getTeamStats(apiKey, awayId, matchLeagueId);
         const homeLast5 = await getLastMatches(apiKey, homeId);
         const awayLast5 = await getLastMatches(apiKey, awayId);
-
         const prediction = await getPrediction(apiKey, fixtureId);
         const standings = await getStandings(apiKey, matchLeagueId);
         const odds = await getOdds(apiKey, fixtureId);
@@ -82,9 +81,9 @@ function gerarRecomendacao(home, away) {
   const chutesAoGol = Number(home.shotsOn) + Number(away.shotsOn);
   const escanteios = Number(home.corners) + Number(away.corners);
 
-  if (totalGols > 4) return '🔥 Aposta sugerida: Mais de 2.5 gols';
+  if (totalGols > 4) return '🔥 Aposta sugerida: Over 2.5 gols';
   if (chutesAoGol >= 10) return '💡 Aposta sugerida: Ambas marcam';
-  if (escanteios >= 10) return '🏆 Aposta sugerida: Mais de 9.5 escanteios';
+  if (escanteios >= 10) return '🏆 Aposta sugerida: Over escanteios';
   return '🤔 Não recomendado apostar';
 }
 
@@ -98,7 +97,7 @@ async function getTeamStats(apiKey, teamId, leagueId) {
     });
 
     const stats = res.data.response;
-    const manual = await calculateStatsManual(apiKey, teamId);
+    const manual = await calculateShotsAndCorners(apiKey, teamId);
 
     return {
       goalsFor: stats.goals?.for?.average?.total ?? manual.goalsFor,
@@ -109,11 +108,19 @@ async function getTeamStats(apiKey, teamId, leagueId) {
       cards: manual.cards
     };
   } catch {
-    return await calculateStatsManual(apiKey, teamId);
+    const manual = await calculateShotsAndCorners(apiKey, teamId);
+    return {
+      goalsFor: manual.goalsFor,
+      goalsAgainst: manual.goalsAgainst,
+      shots: manual.shots,
+      shotsOn: manual.shotsOn,
+      corners: manual.corners,
+      cards: manual.cards
+    };
   }
 }
 
-async function calculateStatsManual(apiKey, teamId) {
+async function calculateShotsAndCorners(apiKey, teamId) {
   try {
     const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${teamId}&last=5`, {
       headers: {
@@ -123,8 +130,9 @@ async function calculateStatsManual(apiKey, teamId) {
     });
 
     const fixtures = res.data.response;
-    let totalShots = 0, totalShotsOn = 0, totalCorners = 0, totalCards = 0;
-    let totalGoalsFor = 0, totalGoalsAgainst = 0, count = 0;
+    let totalShots = 0, totalShotsOn = 0, totalCorners = 0;
+    let totalGoalsFor = 0, totalGoalsAgainst = 0, totalCards = 0;
+    let count = 0;
 
     for (const match of fixtures) {
       await delay(300);
@@ -138,10 +146,13 @@ async function calculateStatsManual(apiKey, teamId) {
         }
       });
 
-      const teamStats = statsRes.data.response.find(e => e.team.id === teamId);
-      if (teamStats) {
-        const get = (type) => teamStats.statistics.find(s => s.type.includes(type))?.value ?? 0;
-        totalShots += get('Total Shots');
+      const stats = statsRes.data.response.find(e => e.team.id === teamId);
+      if (stats) {
+        const get = (type) => stats.statistics.find(s =>
+          ['Total Shots', 'Shots on Goal', 'Corner Kicks', 'Total corners', 'Yellow Cards', 'Red Cards'].includes(s.type) && s.type.includes(type)
+        )?.value ?? 0;
+
+        totalShots += get('Shots');
         totalShotsOn += get('Shots on Goal');
         totalCorners += get('Corner');
         totalCards += get('Yellow Cards') + get('Red Cards');
