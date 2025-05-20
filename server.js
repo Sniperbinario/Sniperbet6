@@ -9,6 +9,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
+// Inclui todos os campeonatos desejados
 const leagueIds = [71, 72, 13, 39, 140, 135, 130];
 const season = 2024;
 
@@ -29,7 +30,7 @@ app.get('/games', async (req, res) => {
         }
       });
 
-      const fixtures = fixtureRes.data.response.filter(f => f.fixture.status.short === "FT");
+      const fixtures = fixtureRes.data.response; // <-- Corrigido aqui (sem filtrar por status)
 
       for (const match of fixtures) {
         const fixtureId = match.fixture.id;
