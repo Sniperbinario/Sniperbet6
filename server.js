@@ -9,7 +9,8 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
-const leagueIds = [71, 72, 13, 39, 140, 135, 130];
+// Inclui Série A (71), Série B (72), Liberta (13), Premier (39), La Liga (140), Serie A ITA (135), Betano Argentino (130), Copa do Brasil (73)
+const leagueIds = [71, 72, 13, 39, 140, 135, 130, 73];
 const season = 2024;
 
 app.get('/games', async (req, res) => {
@@ -81,9 +82,9 @@ function gerarRecomendacao(home, away) {
   const chutesAoGol = Number(home.shotsOn) + Number(away.shotsOn);
   const escanteios = Number(home.corners) + Number(away.corners);
 
-  if (totalGols > 4) return '🔥 Aposta sugerida: Over 2.5 gols';
+  if (totalGols > 4) return '🔥 Aposta sugerida: Mais de 2.5 gols';
   if (chutesAoGol >= 10) return '💡 Aposta sugerida: Ambas marcam';
-  if (escanteios >= 10) return '🏆 Aposta sugerida: Over escanteios';
+  if (escanteios >= 10) return '🏆 Aposta sugerida: Mais de 9.5 escanteios';
   return '🤔 Não recomendado apostar';
 }
 
@@ -97,7 +98,7 @@ async function getTeamStats(apiKey, teamId, leagueId) {
     });
 
     const stats = res.data.response;
-    const manual = await calculateShotsAndCorners(apiKey, teamId);
+    const manual = await calculateStatsManual(apiKey, teamId);
 
     return {
       goalsFor: stats.goals?.for?.average?.total ?? manual.goalsFor,
@@ -108,19 +109,11 @@ async function getTeamStats(apiKey, teamId, leagueId) {
       cards: manual.cards
     };
   } catch {
-    const manual = await calculateShotsAndCorners(apiKey, teamId);
-    return {
-      goalsFor: manual.goalsFor,
-      goalsAgainst: manual.goalsAgainst,
-      shots: manual.shots,
-      shotsOn: manual.shotsOn,
-      corners: manual.corners,
-      cards: manual.cards
-    };
+    return await calculateStatsManual(apiKey, teamId);
   }
 }
 
-async function calculateShotsAndCorners(apiKey, teamId) {
+async function calculateStatsManual(apiKey, teamId) {
   try {
     const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${teamId}&last=5`, {
       headers: {
@@ -131,8 +124,7 @@ async function calculateShotsAndCorners(apiKey, teamId) {
 
     const fixtures = res.data.response;
     let totalShots = 0, totalShotsOn = 0, totalCorners = 0, totalCards = 0;
-    let totalGoalsFor = 0, totalGoalsAgainst = 0;
-    let count = 0;
+    let totalGoalsFor = 0, totalGoalsAgainst = 0, count = 0;
 
     for (const match of fixtures) {
       await delay(300);
@@ -146,10 +138,9 @@ async function calculateShotsAndCorners(apiKey, teamId) {
         }
       });
 
-      const stats = statsRes.data.response.find(e => e.team.id === teamId);
-      if (stats) {
-        const get = (type) => stats.statistics.find(s => s.type.includes(type))?.value ?? 0;
-
+      const teamStats = statsRes.data.response.find(e => e.team.id === teamId);
+      if (teamStats) {
+        const get = (type) => teamStats.statistics.find(s => s.type.includes(type))?.value ?? 0;
         totalShots += get('Total Shots');
         totalShotsOn += get('Shots on Goal');
         totalCorners += get('Corner');
