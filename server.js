@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
-const leagueIds = [71, 72, 13, 39, 140, 135, 130]; // Inclui Brasileirão A e B, Libertadores, Premier League, La Liga, Serie A ITA e Torneio Betano Argentino
+const leagueIds = [71, 72, 13, 39, 140, 135, 130]; // Inclui Série B e Torneio Betano Argentino
 const season = 2024;
 
 app.get('/games', async (req, res) => {
@@ -37,8 +37,8 @@ app.get('/games', async (req, res) => {
         const awayId = match.teams.away.id;
         const matchLeagueId = match.league.id;
 
-        const homeStats = await getTeamStats(apiKey, homeId, matchLeagueId);
-        const awayStats = await getTeamStats(apiKey, awayId, matchLeagueId);
+        const homeStats = await getTeamStats(apiKey, homeId);
+        const awayStats = await getTeamStats(apiKey, awayId);
         const homeLast5 = await getLastMatches(apiKey, homeId);
         const awayLast5 = await getLastMatches(apiKey, awayId);
         const prediction = await getPrediction(apiKey, fixtureId);
@@ -76,60 +76,19 @@ function delay(ms) {
 }
 
 function gerarRecomendacao(home, away) {
-  const mediaGols = (parseFloat(home.goalsFor) + parseFloat(away.goalsFor)) / 2;
-  const mediaChutes = (parseFloat(home.shots) + parseFloat(away.shots)) / 2;
-  const mediaChutesGol = (parseFloat(home.shotsOn) + parseFloat(away.shotsOn)) / 2;
-  const mediaEscanteios = (parseFloat(home.corners) + parseFloat(away.corners)) / 2;
-
-  if (mediaGols >= 1.8 && mediaChutesGol >= 6) {
+  if (home.goalsFor > 2 || away.goalsFor > 2) {
     return '🔥 Aposta sugerida: Over 2.5 gols';
   }
-  if (mediaGols >= 1.5 && mediaChutesGol >= 5) {
+  if (home.shotsOn >= 5 && away.shotsOn >= 5) {
     return '💡 Aposta sugerida: Ambas marcam';
   }
-  if (mediaEscanteios >= 9 && mediaChutes >= 20) {
+  if (home.corners >= 5 && away.corners >= 5) {
     return '🏆 Aposta sugerida: Over 9.5 escanteios';
   }
-  if (mediaGols <= 1 && mediaChutesGol < 4) {
-    return '🚫 Evite apostas: tendência de poucos gols';
-  }
-  return '🤔 Nenhuma aposta clara identificada';
+  return '🤔 Não recomendado apostar';
 }
 
-async function getTeamStats(apiKey, teamId, leagueId) {
-  try {
-    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/teams/statistics?team=${teamId}&season=2024&league=${leagueId}`, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-      }
-    });
-
-    const stats = res.data.response;
-    const manual = await calculateShotsAndCorners(apiKey, teamId);
-
-    return {
-      goalsFor: stats.goals?.for?.average?.total ?? 0,
-      goalsAgainst: stats.goals?.against?.average?.total ?? 0,
-      shots: stats.shots?.total?.average ?? manual.shots,
-      shotsOn: stats.shots?.on?.average ?? manual.shotsOn,
-      corners: manual.corners,
-      cards: (Math.random() * 4).toFixed(1)
-    };
-  } catch {
-    const manual = await calculateShotsAndCorners(apiKey, teamId);
-    return {
-      goalsFor: 0,
-      goalsAgainst: 0,
-      shots: manual.shots,
-      shotsOn: manual.shotsOn,
-      corners: manual.corners,
-      cards: 0
-    };
-  }
-}
-
-async function calculateShotsAndCorners(apiKey, teamId) {
+async function getTeamStats(apiKey, teamId) {
   try {
     const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${teamId}&last=5`, {
       headers: {
@@ -152,7 +111,12 @@ async function calculateShotsAndCorners(apiKey, teamId) {
 
       const stats = statsRes.data.response.find(e => e.team.id === teamId);
       if (stats) {
-        const get = (type) => stats.statistics.find(s => ['Total Shots', 'Shots on Goal', 'Corner Kicks', 'Total corners'].includes(s.type) && s.type.includes(type))?.value ?? 0;
+        const get = (type) =>
+          stats.statistics.find(s =>
+            ['Total Shots', 'Shots', 'Shots on Goal', 'Total corners', 'Corner Kicks', 'Corners'].includes(s.type) &&
+            s.type.includes(type)
+          )?.value ?? 0;
+
         totalShots += get('Shots');
         totalShotsOn += get('Shots on Goal');
         totalCorners += get('Corner');
@@ -161,12 +125,37 @@ async function calculateShotsAndCorners(apiKey, teamId) {
     }
 
     return {
+      goalsFor: '-', // não disponível nesse endpoint
+      goalsAgainst: '-',
       shots: (totalShots / count).toFixed(1),
       shotsOn: (totalShotsOn / count).toFixed(1),
-      corners: (totalCorners / count).toFixed(1)
+      corners: (totalCorners / count).toFixed(1),
+      cards: (Math.random() * 4).toFixed(1)
     };
   } catch {
-    return { shots: '-', shotsOn: '-', corners: '-' };
+    return { shots: '-', shotsOn: '-', corners: '-', cards: '-' };
+  }
+}
+
+async function getLastMatches(apiKey, teamId) {
+  try {
+    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${teamId}&last=5`, {
+      headers: {
+        'X-RapidAPI-Key': apiKey,
+        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
+      }
+    });
+
+    return res.data.response.map(match => ({
+      date: new Date(match.fixture.date).toLocaleDateString('pt-BR'),
+      homeTeam: match.teams.home.name,
+      awayTeam: match.teams.away.name,
+      homeGoals: match.goals.home,
+      awayGoals: match.goals.away,
+      venue: match.teams.home.id === teamId ? 'Casa' : 'Fora'
+    }));
+  } catch {
+    return [];
   }
 }
 
@@ -201,6 +190,7 @@ async function getStandings(apiKey, leagueId) {
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
       }
     });
+
     return res.data.response?.[0]?.league?.standings?.[0] ?? [];
   } catch {
     return [];
@@ -238,28 +228,6 @@ async function getOdds(apiKey, fixtureId) {
     return odds;
   } catch {
     return {};
-  }
-}
-
-async function getLastMatches(apiKey, teamId) {
-  try {
-    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${teamId}&last=5`, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-      }
-    });
-
-    return res.data.response.map(match => ({
-      date: new Date(match.fixture.date).toLocaleDateString('pt-BR'),
-      homeTeam: match.teams.home.name,
-      awayTeam: match.teams.away.name,
-      homeGoals: match.goals.home,
-      awayGoals: match.goals.away,
-      venue: match.teams.home.id === teamId ? 'Casa' : 'Fora'
-    }));
-  } catch {
-    return [];
   }
 }
 
