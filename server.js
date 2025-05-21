@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -10,23 +9,8 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
-// Campeonatos importantes confirmados
-const leagueIds = [
-  71,    // Brasileirão Série A
-  76,    // Série B
-  73,    // Copa do Brasil
-  13,    // Libertadores
-  11,    // Sul-Americana
-  45,    // FA Cup
-  94,    // Primeira Liga (Portugal)
-  307,   // Saudi League
-  238,   // UAE Pro League
-  1097,  // Copa do Espírito Santo
-  1183,  // Brasileiro U20
-  88,    // Eredivisie (Holanda)
-  61,    // Segunda Liga Francesa
-  197    // Premier League Sul-Africana
-];
+// CAMPEONATOS FILTRADOS
+const leagueIds = [71, 72, 73, 13, 45, 307, 304, 94, 197, 88, 215, 184];
 const season = 2024;
 
 app.get('/games', async (req, res) => {
@@ -195,6 +179,7 @@ async function getPrediction(apiKey, fixtureId) {
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
       }
     });
+
     const pred = res.data.response?.[0];
     return {
       advice: pred?.predictions?.advice ?? '-',
