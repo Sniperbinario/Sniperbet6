@@ -9,7 +9,6 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
-const leagueIds = [71, 72, 13, 39, 140, 135, 130];
 const season = 2024;
 
 app.get('/games', async (req, res) => {
@@ -21,48 +20,47 @@ app.get('/games', async (req, res) => {
   let finalGames = [];
 
   try {
-    for (const leagueId of leagueIds) {
-      const fixtureRes = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?date=${today}&league=${leagueId}&season=${season}`, {
-        headers: {
-          'X-RapidAPI-Key': apiKey,
-          'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-        }
-      });
-
-      const fixtures = fixtureRes.data.response;
-
-      for (const match of fixtures) {
-        const fixtureId = match.fixture.id;
-        const homeId = match.teams.home.id;
-        const awayId = match.teams.away.id;
-        const matchLeagueId = match.league.id;
-
-        const homeStats = await getTeamStats(apiKey, homeId, matchLeagueId);
-        const awayStats = await getTeamStats(apiKey, awayId, matchLeagueId);
-        const homeLast5 = await getLastMatches(apiKey, homeId);
-        const awayLast5 = await getLastMatches(apiKey, awayId);
-
-        const prediction = await getPrediction(apiKey, fixtureId);
-        const standings = await getStandings(apiKey, matchLeagueId);
-        const odds = await getOdds(apiKey, fixtureId);
-
-        finalGames.push({
-          fixtureId,
-          homeTeam: match.teams.home.name,
-          awayTeam: match.teams.away.name,
-          homeLogo: match.teams.home.logo,
-          awayLogo: match.teams.away.logo,
-          time: new Date(match.fixture.date).toLocaleTimeString('pt-BR', {
-            timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit'
-          }),
-          stats: { home: homeStats, away: awayStats },
-          last5Matches: { home: homeLast5, away: awayLast5 },
-          prediction,
-          standings,
-          odds,
-          recommendation: gerarRecomendacao(homeStats, awayStats)
-        });
+    const fixtureRes = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?date=${today}&season=${season}`, {
+      headers: {
+        'X-RapidAPI-Key': apiKey,
+        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
       }
+    });
+
+    const fixtures = fixtureRes.data.response;
+
+    for (const match of fixtures) {
+      const fixtureId = match.fixture.id;
+      const homeId = match.teams.home.id;
+      const awayId = match.teams.away.id;
+      const matchLeagueId = match.league.id;
+
+      const homeStats = await getTeamStats(apiKey, homeId, matchLeagueId);
+      const awayStats = await getTeamStats(apiKey, awayId, matchLeagueId);
+      const homeLast5 = await getLastMatches(apiKey, homeId);
+      const awayLast5 = await getLastMatches(apiKey, awayId);
+      const prediction = await getPrediction(apiKey, fixtureId);
+      const standings = await getStandings(apiKey, matchLeagueId);
+      const odds = await getOdds(apiKey, fixtureId);
+
+      finalGames.push({
+        fixtureId,
+        homeTeam: match.teams.home.name,
+        awayTeam: match.teams.away.name,
+        homeLogo: match.teams.home.logo,
+        awayLogo: match.teams.away.logo,
+        time: new Date(match.fixture.date).toLocaleTimeString('pt-BR', {
+          timeZone: 'America/Sao_Paulo',
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        stats: { home: homeStats, away: awayStats },
+        last5Matches: { home: homeLast5, away: awayLast5 },
+        prediction,
+        standings,
+        odds,
+        recommendation: gerarRecomendacao(homeStats, awayStats)
+      });
     }
 
     res.json(finalGames.length > 0 ? finalGames : []);
