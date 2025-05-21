@@ -1,5 +1,3 @@
-// server.js completo - mostrando todos os jogos de hoje que ainda nao encerraram
-
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -11,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
-const leagueIds = [71, 72, 13, 39, 140, 135, 130]; // Inclui as principais ligas + Torneio Betano Argentino
+const leagueIds = [71, 72, 13, 39, 140, 135, 130]; // Série A, Série B, Libertadores, Premier, La Liga, Serie A ITA, Torneio Betano Argentino
 const season = 2024;
 
 app.get('/games', async (req, res) => {
@@ -24,17 +22,14 @@ app.get('/games', async (req, res) => {
 
   try {
     for (const leagueId of leagueIds) {
-      const fixtureRes = await axios.get(https://api-football-v1.p.rapidapi.com/v3/fixtures?date=${today}&league=${leagueId}&season=${season}, {
+      const fixtureRes = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?date=${today}&league=${leagueId}&season=${season}`, {
         headers: {
           'X-RapidAPI-Key': apiKey,
           'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
         }
       });
 
-      // Aqui filtramos apenas os jogos que NAO estao encerrados
-      const fixtures = fixtureRes.data.response.filter(f =>
-        !["FT", "AET", "PEN"].includes(f.fixture.status.short)
-      );
+      const fixtures = fixtureRes.data.response; // Sem filtro de encerrados
 
       for (const match of fixtures) {
         const fixtureId = match.fixture.id;
@@ -46,7 +41,6 @@ app.get('/games', async (req, res) => {
         const awayStats = await getTeamStats(apiKey, awayId, matchLeagueId);
         const homeLast5 = await getLastMatches(apiKey, homeId);
         const awayLast5 = await getLastMatches(apiKey, awayId);
-
         const prediction = await getPrediction(apiKey, fixtureId);
         const standings = await getStandings(apiKey, matchLeagueId);
         const odds = await getOdds(apiKey, fixtureId);
@@ -86,15 +80,15 @@ function gerarRecomendacao(home, away) {
   const chutesAoGol = Number(home.shotsOn) + Number(away.shotsOn);
   const escanteios = Number(home.corners) + Number(away.corners);
 
-  if (totalGols > 4) return '🔥 Aposta sugerida: Over 2.5 gols';
+  if (totalGols >= 3) return '🔥 Aposta sugerida: Mais de 2.5 gols';
   if (chutesAoGol >= 10) return '💡 Aposta sugerida: Ambas marcam';
-  if (escanteios >= 10) return '🏆 Aposta sugerida: Over escanteios';
+  if (escanteios >= 10) return '🏆 Aposta sugerida: Mais de 9.5 escanteios';
   return '🤔 Não recomendado apostar';
 }
 
 async function getTeamStats(apiKey, teamId, leagueId) {
   try {
-    const res = await axios.get(https://api-football-v1.p.rapidapi.com/v3/teams/statistics?team=${teamId}&season=2024&league=${leagueId}, {
+    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/teams/statistics?team=${teamId}&season=2024&league=${leagueId}`, {
       headers: {
         'X-RapidAPI-Key': apiKey,
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
@@ -127,7 +121,7 @@ async function getTeamStats(apiKey, teamId, leagueId) {
 
 async function calculateShotsAndCorners(apiKey, teamId) {
   try {
-    const res = await axios.get(https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${teamId}&last=5, {
+    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${teamId}&last=5`, {
       headers: {
         'X-RapidAPI-Key': apiKey,
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
@@ -136,28 +130,33 @@ async function calculateShotsAndCorners(apiKey, teamId) {
 
     const fixtures = res.data.response;
     let totalShots = 0, totalShotsOn = 0, totalCorners = 0, totalCards = 0;
-    let totalGoalsFor = 0, totalGoalsAgainst = 0, count = 0;
+    let totalGoalsFor = 0, totalGoalsAgainst = 0;
+    let count = 0;
 
     for (const match of fixtures) {
       await delay(300);
       totalGoalsFor += match.teams.home.id === teamId ? match.goals.home : match.goals.away;
       totalGoalsAgainst += match.teams.home.id === teamId ? match.goals.away : match.goals.home;
 
-      const statsRes = await axios.get(https://api-football-v1.p.rapidapi.com/v3/fixtures/statistics?fixture=${match.fixture.id}, {
+      const statsRes = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures/statistics?fixture=${match.fixture.id}`, {
         headers: {
           'X-RapidAPI-Key': apiKey,
           'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
         }
       });
 
-      const stats = statsRes.data.response.find(e => e.team.id === teamId);
-      if (stats) {
-        const get = (type) => stats.statistics.find(s => ['Total Shots', 'Shots on Goal', 'Corner Kicks', 'Total corners', 'Yellow Cards', 'Red Cards'].includes(s.type) && s.type.includes(type))?.value ?? 0;
+      const teamStats = statsRes.data.response.find(e => e.team.id === teamId);
+      if (teamStats) {
+        const get = (type) =>
+          teamStats.statistics.find(s =>
+            ['Total Shots', 'Shots on Goal', 'Corner Kicks', 'Total corners', 'Yellow Cards', 'Red Cards'].includes(s.type)
+            && s.type.includes(type)
+          )?.value ?? 0;
 
         totalShots += get('Shots');
         totalShotsOn += get('Shots on Goal');
         totalCorners += get('Corner');
-        totalCards += get('Yellow Cards') + get('Red Cards');
+        totalCards += get('Yellow') + get('Red');
         count++;
       }
     }
@@ -171,18 +170,26 @@ async function calculateShotsAndCorners(apiKey, teamId) {
       cards: (totalCards / count).toFixed(1)
     };
   } catch {
-    return { goalsFor: '-', goalsAgainst: '-', shots: '-', shotsOn: '-', corners: '-', cards: '-' };
+    return {
+      goalsFor: '-',
+      goalsAgainst: '-',
+      shots: '-',
+      shotsOn: '-',
+      corners: '-',
+      cards: '-'
+    };
   }
 }
 
 async function getPrediction(apiKey, fixtureId) {
   try {
-    const res = await axios.get(https://api-football-v1.p.rapidapi.com/v3/predictions?fixture=${fixtureId}, {
+    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/predictions?fixture=${fixtureId}`, {
       headers: {
         'X-RapidAPI-Key': apiKey,
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
       }
     });
+
     const pred = res.data.response?.[0];
     return {
       advice: pred?.predictions?.advice ?? '-',
@@ -199,7 +206,7 @@ async function getPrediction(apiKey, fixtureId) {
 
 async function getStandings(apiKey, leagueId) {
   try {
-    const res = await axios.get(https://api-football-v1.p.rapidapi.com/v3/standings?league=${leagueId}&season=2024, {
+    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/standings?league=${leagueId}&season=2024`, {
       headers: {
         'X-RapidAPI-Key': apiKey,
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
@@ -213,14 +220,16 @@ async function getStandings(apiKey, leagueId) {
 
 async function getOdds(apiKey, fixtureId) {
   try {
-    const res = await axios.get(https://api-football-v1.p.rapidapi.com/v3/odds?fixture=${fixtureId}&bookmaker=6, {
+    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/odds?fixture=${fixtureId}&bookmaker=6`, {
       headers: {
         'X-RapidAPI-Key': apiKey,
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
       }
     });
+
     const bets = res.data.response?.[0]?.bookmakers?.[0]?.bets ?? [];
     const odds = {};
+
     for (const bet of bets) {
       if (bet.name === 'Match Winner') {
         bet.values.forEach(v => {
@@ -236,6 +245,7 @@ async function getOdds(apiKey, fixtureId) {
         odds.btts = bet.values.find(v => v.value === 'Yes')?.odd;
       }
     }
+
     return odds;
   } catch {
     return {};
@@ -244,12 +254,13 @@ async function getOdds(apiKey, fixtureId) {
 
 async function getLastMatches(apiKey, teamId) {
   try {
-    const res = await axios.get(https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${teamId}&last=5, {
+    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${teamId}&last=5`, {
       headers: {
         'X-RapidAPI-Key': apiKey,
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
       }
     });
+
     return res.data.response.map(match => ({
       date: new Date(match.fixture.date).toLocaleDateString('pt-BR'),
       homeTeam: match.teams.home.name,
@@ -264,5 +275,5 @@ async function getLastMatches(apiKey, teamId) {
 }
 
 app.listen(PORT, () => {
-  console.log(🔥 SniperBet rodando na porta ${PORT});
+  console.log(`🔥 SniperBet rodando na porta ${PORT}`);
 });
