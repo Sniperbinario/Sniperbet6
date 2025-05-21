@@ -1,207 +1,136 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <title>SniperBet - Jogos do Dia</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <title>SniperBet — Jogos do Dia</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
-      background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
-      color: #f0f0f0;
-      font-family: 'Segoe UI', sans-serif;
       margin: 0;
-      padding: 20px;
-    }
-
-    .titulo {
-      font-size: 36px;
-      font-weight: 900;
-      color: #00ff88;
-      text-shadow: 0 0 8px #00ff8866;
-      margin-bottom: 30px;
-      text-align: center;
-    }
-
-    .sub {
-      color: #ffffffcc;
-      font-weight: 400;
-    }
-
-    .game {
-      background-color: #1b1b1b;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 30px;
-      box-shadow: 0 0 10px #00000080;
-    }
-
-    .teams {
-      font-size: 20px;
-      font-weight: bold;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #0d1b2a, #1b263b);
+      color: white;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 10px;
+      padding: 20px;
     }
-
-    .logo {
-      height: 26px;
-      vertical-align: middle;
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 20px;
+      color: #00ffae;
     }
-
-    .time {
-      font-size: 14px;
-      margin: 10px 0;
-      color: #ccc;
+    .match {
+      background: #111;
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 20px;
+      width: 100%;
+      max-width: 700px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
     }
-
-    .stats-container {
+    .match h2 {
+      margin: 0;
+      font-size: 1.2rem;
       display: flex;
       justify-content: space-between;
-      gap: 30px;
-      flex-wrap: wrap;
+      align-items: center;
     }
-
-    .stats, .recent-matches, .advanced {
-      font-size: 14px;
-      margin-top: 15px;
+    .team-logos {
+      height: 24px;
+      margin-right: 10px;
+      vertical-align: middle;
     }
-
-    .rec {
+    .stat-block, .last-matches {
+      margin-top: 10px;
+      font-size: 0.9rem;
+    }
+    .recommendation {
       font-weight: bold;
-      margin-top: 15px;
-      color: #00ff88;
+      color: #00ffae;
+      margin-top: 10px;
     }
-
-    .rec-backup {
-      color: #ffcc00;
-    }
-
-    .button {
-      background-color: #00ff88;
+    .advanced {
+      background: #00ffae;
       color: #000;
-      font-weight: bold;
-      border: none;
-      padding: 10px 18px;
-      font-size: 14px;
-      border-radius: 8px;
+      padding: 5px 10px;
+      border-radius: 5px;
+      margin-top: 10px;
+      display: inline-block;
       cursor: pointer;
-      margin-top: 15px;
-      transition: background 0.3s ease;
-    }
-
-    .button:hover {
-      background-color: #00d377;
-    }
-
-    hr {
-      border: 0;
-      border-top: 1px solid #444;
-      margin: 15px 0;
-    }
-
-    @media (max-width: 768px) {
-      .stats-container {
-        flex-direction: column;
-      }
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <h1 class="titulo">⚽ SniperBet <span class="sub">— Jogos do Dia</span></h1>
-  <div id="games">Carregando...</div>
+  <h1>⚽ SniperBet — Jogos do Dia</h1>
+  <div id="gamesContainer">Carregando jogos...</div>
 
   <script>
     async function loadGames() {
-      const res = await fetch('/games');
-      const games = await res.json();
-      const container = document.getElementById('games');
-      container.innerHTML = '';
+      try {
+        const res = await fetch('/games');
+        const games = await res.json();
+        const container = document.getElementById('gamesContainer');
 
-      games.forEach(game => {
-        const div = document.createElement('div');
-        div.className = 'game';
+        if (games.length < 1) {
+          container.innerHTML = "<p>⚠️ Nenhum jogo encontrado.</p>";
+          return;
+        }
 
-        const isBackup = game.recommendation.includes('backup');
-        const homeStats = game.stats.home;
-        const awayStats = game.stats.away;
+        container.innerHTML = '';
 
-        const homeMatches = game.last5Matches.home?.map(match =>
-          `• ${match.date} — ${match.homeTeam} ${match.homeGoals} x ${match.awayGoals} ${match.awayTeam} (${match.venue})`
-        ).join('<br>') || '';
+        games.forEach(game => {
+          const div = document.createElement('div');
+          div.className = 'match';
 
-        const awayMatches = game.last5Matches.away?.map(match =>
-          `• ${match.date} — ${match.homeTeam} ${match.homeGoals} x ${match.awayGoals} ${match.awayTeam} (${match.venue})`
-        ).join('<br>') || '';
+          div.innerHTML = `
+            <h2>
+              <img src="${game.homeLogo}" class="team-logos"> ${game.homeTeam}
+              vs
+              ${game.awayTeam} <img src="${game.awayLogo}" class="team-logos">
+            </h2>
+            <p>🕒 Horário: ${game.time}</p>
 
-        const predictions = game.prediction?.win_percent || {};
-        const standings = game.standings || [];
-        const homeStanding = standings.find(t => t.team.name === game.homeTeam);
-        const awayStanding = standings.find(t => t.team.name === game.awayTeam);
-        const odds = game.odds || {};
-        const predAdvice = game.prediction?.advice || '-';
-
-        const homeClass = homeStanding ? `${homeStanding.rank}º lugar | ${homeStanding.points} pts | ${homeStanding.all.played} jogos (${homeStanding.all.win}V ${homeStanding.all.draw}E ${homeStanding.all.lose}D)` : '-';
-        const awayClass = awayStanding ? `${awayStanding.rank}º lugar | ${awayStanding.points} pts | ${awayStanding.all.played} jogos (${awayStanding.all.win}V ${awayStanding.all.draw}E ${awayStanding.all.lose}D)` : '-';
-
-        div.innerHTML = `
-          <div class="teams">
-            <img src="${game.homeLogo}" class="logo"> ${game.homeTeam}
-            vs
-            <img src="${game.awayLogo}" class="logo"> ${game.awayTeam}
-          </div>
-          <div class="time">🕒 Horário: ${game.time}</div>
-          <hr>
-          <div class="stats-container">
-            <div class="stats">
+            <div class="stat-block">
               <strong>${game.homeTeam} - Médias (últimos 5 jogos):</strong><br>
-              • Gols feitos: ${homeStats.goalsFor}<br>
-              • Gols sofridos: ${homeStats.goalsAgainst}<br>
-              • Chutes: ${homeStats.shots}<br>
-              • Chutes ao gol: ${homeStats.shotsOn}<br>
-              • Escanteios: ${homeStats.corners}<br>
-              • Cartões: ${homeStats.cards}
+              • Gols feitos: ${game.stats.home.goalsFor}<br>
+              • Gols sofridos: ${game.stats.home.goalsAgainst}<br>
+              • Chutes: ${game.stats.home.shots}<br>
+              • Chutes ao gol: ${game.stats.home.shotsOn}<br>
+              • Escanteios: ${game.stats.home.corners}<br>
+              • Cartões: ${game.stats.home.cards}<br>
             </div>
-            <div class="stats">
+
+            <div class="stat-block">
               <strong>${game.awayTeam} - Médias (últimos 5 jogos):</strong><br>
-              • Gols feitos: ${awayStats.goalsFor}<br>
-              • Gols sofridos: ${awayStats.goalsAgainst}<br>
-              • Chutes: ${awayStats.shots}<br>
-              • Chutes ao gol: ${awayStats.shotsOn}<br>
-              • Escanteios: ${awayStats.corners}<br>
-              • Cartões: ${awayStats.cards}
+              • Gols feitos: ${game.stats.away.goalsFor}<br>
+              • Gols sofridos: ${game.stats.away.goalsAgainst}<br>
+              • Chutes: ${game.stats.away.shots}<br>
+              • Chutes ao gol: ${game.stats.away.shotsOn}<br>
+              • Escanteios: ${game.stats.away.corners}<br>
+              • Cartões: ${game.stats.away.cards}<br>
             </div>
-          </div>
-          <div class="recent-matches">
-            <strong>Últimos 5 jogos de ${game.homeTeam}:</strong><br>${homeMatches}<br><br>
-            <strong>Últimos 5 jogos de ${game.awayTeam}:</strong><br>${awayMatches}
-          </div>
-          <button class="button" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'block' ? 'none' : 'block'">
-            ${isBackup ? '⚠️ Dados via backup' : '➕ Ver análise avançada'}
-          </button>
-          <div class="advanced" style="display:none">
-            <hr>
-            <strong>📊 Previsão:</strong><br>
-            • Palpite: ${predAdvice}<br>
-            • ${game.homeTeam}: ${predictions.home || '0'}%<br>
-            • Empate: ${predictions.draw || '0'}%<br>
-            • ${game.awayTeam}: ${predictions.away || '0'}%<br><br>
 
-            <strong>🏆 Classificação:</strong><br>
-            ${game.homeTeam} - ${homeClass}<br>
-            ${game.awayTeam} - ${awayClass}<br><br>
+            <div class="last-matches">
+              <strong>Últimos 5 jogos de ${game.homeTeam}:</strong><br>
+              ${game.last5Matches.home.map(m => `• ${m.date} — ${m.homeTeam} ${m.homeGoals} x ${m.awayGoals} ${m.awayTeam} (${m.venue})`).join('<br>')}
+              <br><br>
+              <strong>Últimos 5 jogos de ${game.awayTeam}:</strong><br>
+              ${game.last5Matches.away.map(m => `• ${m.date} — ${m.homeTeam} ${m.homeGoals} x ${m.awayGoals} ${m.awayTeam} (${m.venue})`).join('<br>')}
+            </div>
 
-            <strong>💵 Odds:</strong><br>
-            • ${game.homeTeam}: ${odds.home || '-'}<br>
-            • Empate: ${odds.draw || '-'}<br>
-            • ${game.awayTeam}: ${odds.away || '-'}<br>
-            • Over 2.5: ${odds.over25 || '-'}<br>
-            • Ambos marcam: ${odds.btts || '-'}
-          </div>
-          <div class="rec ${isBackup ? 'rec-backup' : ''}">🔍 ${game.recommendation}</div>
-        `;
+            <div class="recommendation">🔍 ${game.recommendation}</div>
+            <a class="advanced" href="#">+ Ver análise avançada</a>
+          `;
 
-        container.appendChild(div);
-      });
+          container.appendChild(div);
+        });
+
+      } catch (err) {
+        document.getElementById('gamesContainer').innerHTML = "❌ Erro ao carregar os jogos.";
+        console.error(err);
+      }
     }
 
     loadGames();
