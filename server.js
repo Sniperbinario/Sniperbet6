@@ -18,7 +18,7 @@ app.get('/games', async (req, res) => {
   const apiKey = process.env.API_KEY;
   const brDate = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   const [day, month, year] = brDate.split('/');
-  const today = ${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')};
+  const today = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 
   let finalGames = [];
 
