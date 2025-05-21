@@ -9,10 +9,17 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
-// Lista atualizada de IDs de ligas
+// Campeonatos mantidos + novos
 const leagueIds = [
-  71, 72, 13, 39, 140, 135, 130, // Ligas existentes
-  45, 307, 307, 94, 197, 218, 61, 61 // Ligas adicionais
+  71, 72, 13, 39, 140, 135, 130,  // Série A, B, Liberta, Premier, La Liga, Itália, Betano
+  45,    // EFA Cup (Egypt Cup)
+  307,   // Saudi Pro League
+  289,   // UAE Pro League
+  94,    // Primeira Liga Portugal
+  284,   // South African Premier Division
+  154,   // Eredivisie Playoffs
+  207,   // Slovakia Super Liga
+  143    // Ligue 2 - Playoff
 ];
 const season = 2024;
 
@@ -33,7 +40,9 @@ app.get('/games', async (req, res) => {
         }
       });
 
-      const fixtures = fixtureRes.data.response;
+      const fixtures = fixtureRes.data.response.filter(f =>
+        !['FT', 'AET', 'PEN', 'CANC', 'ABD', 'WO', 'PST', 'TBD'].includes(f.fixture.status.short)
+      );
 
       for (const match of fixtures) {
         const fixtureId = match.fixture.id;
@@ -45,7 +54,6 @@ app.get('/games', async (req, res) => {
         const awayStats = await getTeamStats(apiKey, awayId, matchLeagueId);
         const homeLast5 = await getLastMatches(apiKey, homeId);
         const awayLast5 = await getLastMatches(apiKey, awayId);
-
         const prediction = await getPrediction(apiKey, fixtureId);
         const standings = await getStandings(apiKey, matchLeagueId);
         const odds = await getOdds(apiKey, fixtureId);
@@ -85,8 +93,8 @@ function gerarRecomendacao(home, away) {
   const chutesAoGol = Number(home.shotsOn) + Number(away.shotsOn);
   const escanteios = Number(home.corners) + Number(away.corners);
 
-  if (totalGols > 4) return '🔥 Aposta sugerida: Over 2.5 gols';
-  if (chutesAoGol >= 10) return '💡 Aposta sugerida: Ambas marcam';
+  if (totalGols >= 3) return '🔥 Aposta sugerida: Over 2.5 gols';
+  if (chutesAoGol >= 9) return '💡 Aposta sugerida: Ambas marcam';
   if (escanteios >= 10) return '🏆 Aposta sugerida: Over escanteios';
   return '🤔 Não recomendado apostar';
 }
@@ -233,9 +241,43 @@ async function getOdds(apiKey, fixtureId) {
         });
       }
       if (bet.name === 'Over/Under') {
-        odds.over25 = bet.values.find(v => v.value.includes('Over 2.5'))?.odd;
+        const over25 = bet.values.find(v => v.value.includes('Over 2.5'));
+        if (over25) odds.over25 = over25.odd;
       }
       if (bet.name === 'Both Teams To Score') {
-        odds.btts = bet.values.find(v => v.value
-::contentReference[oaicite:0]{index=0}
- 
+        const btts = bet.values.find(v => v.value === 'Yes');
+        if (btts) odds.btts = btts.odd;
+      }
+    }
+
+    return odds;
+  } catch {
+    return {};
+  }
+}
+
+async function getLastMatches(apiKey, teamId) {
+  try {
+    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${teamId}&last=5`, {
+      headers: {
+        'X-RapidAPI-Key': apiKey,
+        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
+      }
+    });
+
+    return res.data.response.map(match => ({
+      date: new Date(match.fixture.date).toLocaleDateString('pt-BR'),
+      homeTeam: match.teams.home.name,
+      awayTeam: match.teams.away.name,
+      homeGoals: match.goals.home,
+      awayGoals: match.goals.away,
+      venue: match.teams.home.id === teamId ? 'Casa' : 'Fora'
+    }));
+  } catch {
+    return [];
+  }
+}
+
+app.listen(PORT, () => {
+  console.log(`🔥 SniperBet rodando na porta ${PORT}`);
+});
