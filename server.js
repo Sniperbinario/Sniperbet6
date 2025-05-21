@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
-const leagueIds = [71, 72, 13, 39, 140, 135, 130]; // Série A, Série B, Libertadores, Premier, La Liga, Serie A ITA, Torneio Betano Argentino
+const leagueIds = [71, 72, 13, 39, 140, 135, 130];
 const season = 2024;
 
 app.get('/games', async (req, res) => {
@@ -29,7 +29,7 @@ app.get('/games', async (req, res) => {
         }
       });
 
-      const fixtures = fixtureRes.data.response; // Sem filtro de encerrados
+      const fixtures = fixtureRes.data.response;
 
       for (const match of fixtures) {
         const fixtureId = match.fixture.id;
@@ -41,6 +41,7 @@ app.get('/games', async (req, res) => {
         const awayStats = await getTeamStats(apiKey, awayId, matchLeagueId);
         const homeLast5 = await getLastMatches(apiKey, homeId);
         const awayLast5 = await getLastMatches(apiKey, awayId);
+
         const prediction = await getPrediction(apiKey, fixtureId);
         const standings = await getStandings(apiKey, matchLeagueId);
         const odds = await getOdds(apiKey, fixtureId);
@@ -80,9 +81,9 @@ function gerarRecomendacao(home, away) {
   const chutesAoGol = Number(home.shotsOn) + Number(away.shotsOn);
   const escanteios = Number(home.corners) + Number(away.corners);
 
-  if (totalGols >= 3) return '🔥 Aposta sugerida: Mais de 2.5 gols';
+  if (totalGols > 4) return '🔥 Aposta sugerida: Over 2.5 gols';
   if (chutesAoGol >= 10) return '💡 Aposta sugerida: Ambas marcam';
-  if (escanteios >= 10) return '🏆 Aposta sugerida: Mais de 9.5 escanteios';
+  if (escanteios >= 10) return '🏆 Aposta sugerida: Over escanteios';
   return '🤔 Não recomendado apostar';
 }
 
@@ -145,18 +146,14 @@ async function calculateShotsAndCorners(apiKey, teamId) {
         }
       });
 
-      const teamStats = statsRes.data.response.find(e => e.team.id === teamId);
-      if (teamStats) {
-        const get = (type) =>
-          teamStats.statistics.find(s =>
-            ['Total Shots', 'Shots on Goal', 'Corner Kicks', 'Total corners', 'Yellow Cards', 'Red Cards'].includes(s.type)
-            && s.type.includes(type)
-          )?.value ?? 0;
+      const stats = statsRes.data.response.find(e => e.team.id === teamId);
+      if (stats) {
+        const get = (type) => stats.statistics.find(s => s.type.includes(type))?.value ?? 0;
 
-        totalShots += get('Shots');
+        totalShots += get('Total Shots');
         totalShotsOn += get('Shots on Goal');
         totalCorners += get('Corner');
-        totalCards += get('Yellow') + get('Red');
+        totalCards += get('Yellow Cards') + get('Red Cards');
         count++;
       }
     }
@@ -170,14 +167,7 @@ async function calculateShotsAndCorners(apiKey, teamId) {
       cards: (totalCards / count).toFixed(1)
     };
   } catch {
-    return {
-      goalsFor: '-',
-      goalsAgainst: '-',
-      shots: '-',
-      shotsOn: '-',
-      corners: '-',
-      cards: '-'
-    };
+    return { goalsFor: '-', goalsAgainst: '-', shots: '-', shotsOn: '-', corners: '-', cards: '-' };
   }
 }
 
