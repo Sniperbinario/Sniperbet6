@@ -22,6 +22,11 @@
       text-align: center;
     }
 
+    .sub {
+      color: #ffffffcc;
+      font-weight: 400;
+    }
+
     .game {
       background-color: #1b1b1b;
       border-radius: 12px;
@@ -36,7 +41,6 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      flex-wrap: wrap;
     }
 
     .logo {
@@ -57,7 +61,7 @@
       flex-wrap: wrap;
     }
 
-    .stats, .recent-matches {
+    .stats, .recent-matches, .advanced {
       font-size: 14px;
       margin-top: 15px;
     }
@@ -66,6 +70,27 @@
       font-weight: bold;
       margin-top: 15px;
       color: #00ff88;
+    }
+
+    .rec-backup {
+      color: #ffcc00;
+    }
+
+    .button {
+      background-color: #00ff88;
+      color: #000;
+      font-weight: bold;
+      border: none;
+      padding: 10px 18px;
+      font-size: 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 15px;
+      transition: background 0.3s ease;
+    }
+
+    .button:hover {
+      background-color: #00d377;
     }
 
     hr {
@@ -78,16 +103,11 @@
       .stats-container {
         flex-direction: column;
       }
-
-      .teams {
-        flex-direction: column;
-        align-items: flex-start;
-      }
     }
   </style>
 </head>
 <body>
-  <h1 class="titulo">⚽ SniperBet — Jogos do Dia</h1>
+  <h1 class="titulo">⚽ SniperBet <span class="sub">— Jogos do Dia</span></h1>
   <div id="games">Carregando...</div>
 
   <script>
@@ -101,6 +121,7 @@
         const div = document.createElement('div');
         div.className = 'game';
 
+        const isBackup = game.recommendation.includes('backup');
         const homeStats = game.stats.home;
         const awayStats = game.stats.away;
 
@@ -111,6 +132,16 @@
         const awayMatches = game.last5Matches.away?.map(match =>
           `• ${match.date} — ${match.homeTeam} ${match.homeGoals} x ${match.awayGoals} ${match.awayTeam} (${match.venue})`
         ).join('<br>') || '';
+
+        const predictions = game.prediction?.win_percent || {};
+        const standings = game.standings || [];
+        const homeStanding = standings.find(t => t.team.name === game.homeTeam);
+        const awayStanding = standings.find(t => t.team.name === game.awayTeam);
+        const odds = game.odds || {};
+        const predAdvice = game.prediction?.advice || '-';
+
+        const homeClass = homeStanding ? `${homeStanding.rank}º lugar | ${homeStanding.points} pts | ${homeStanding.all.played} jogos (${homeStanding.all.win}V ${homeStanding.all.draw}E ${homeStanding.all.lose}D)` : '-';
+        const awayClass = awayStanding ? `${awayStanding.rank}º lugar | ${awayStanding.points} pts | ${awayStanding.all.played} jogos (${awayStanding.all.win}V ${awayStanding.all.draw}E ${awayStanding.all.lose}D)` : '-';
 
         div.innerHTML = `
           <div class="teams">
@@ -144,6 +175,29 @@
             <strong>Últimos 5 jogos de ${game.homeTeam}:</strong><br>${homeMatches}<br><br>
             <strong>Últimos 5 jogos de ${game.awayTeam}:</strong><br>${awayMatches}
           </div>
+          <button class="button" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'block' ? 'none' : 'block'">
+            ${isBackup ? '⚠️ Dados via backup' : '➕ Ver análise avançada'}
+          </button>
+          <div class="advanced" style="display:none">
+            <hr>
+            <strong>📊 Previsão:</strong><br>
+            • Palpite: ${predAdvice}<br>
+            • ${game.homeTeam}: ${predictions.home || '0'}%<br>
+            • Empate: ${predictions.draw || '0'}%<br>
+            • ${game.awayTeam}: ${predictions.away || '0'}%<br><br>
+
+            <strong>🏆 Classificação:</strong><br>
+            ${game.homeTeam} - ${homeClass}<br>
+            ${game.awayTeam} - ${awayClass}<br><br>
+
+            <strong>💵 Odds:</strong><br>
+            • ${game.homeTeam}: ${odds.home || '-'}<br>
+            • Empate: ${odds.draw || '-'}<br>
+            • ${game.awayTeam}: ${odds.away || '-'}<br>
+            • Over 2.5: ${odds.over25 || '-'}<br>
+            • Ambos marcam: ${odds.btts || '-'}
+          </div>
+          <div class="rec ${isBackup ? 'rec-backup' : ''}">🔍 ${game.recommendation}</div>
         `;
 
         container.appendChild(div);
