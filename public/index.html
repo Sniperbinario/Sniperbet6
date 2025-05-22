@@ -2,146 +2,208 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>SniperBet — Jogos do Dia</title>
+  <title>SniperBet - Jogos do Dia</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
-      background: linear-gradient(to bottom, #111, #222);
-      color: #fff;
-      font-family: Arial, sans-serif;
-      padding: 2rem;
+      background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+      color: #f0f0f0;
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 20px;
     }
-    h1 {
-      color: #00ff99;
+
+    .titulo {
+      font-size: 36px;
+      font-weight: 900;
+      color: #00ff88;
+      text-shadow: 0 0 8px #00ff8866;
+      margin-bottom: 30px;
       text-align: center;
     }
-    .game {
-      background: #1a1a1a;
-      padding: 1rem;
-      margin: 1rem 0;
-      border-radius: 12px;
+
+    .sub {
+      color: #ffffffcc;
+      font-weight: 400;
     }
+
+    .game {
+      background-color: #1b1b1b;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 30px;
+      box-shadow: 0 0 10px #00000080;
+    }
+
     .teams {
+      font-size: 20px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo {
+      height: 26px;
+      vertical-align: middle;
+    }
+
+    .time {
+      font-size: 14px;
+      margin: 10px 0;
+      color: #ccc;
+    }
+
+    .stats-container {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      gap: 30px;
+      flex-wrap: wrap;
+    }
+
+    .stats, .recent-matches, .advanced {
+      font-size: 14px;
+      margin-top: 15px;
+    }
+
+    .rec {
       font-weight: bold;
+      margin-top: 15px;
+      color: #00ff88;
     }
-    .teams img {
-      height: 25px;
-      margin: 0 10px;
+
+    .rec-backup {
+      color: #ffcc00;
     }
-    .time {
-      font-size: 0.95rem;
-      color: #ccc;
-      margin-top: 0.4rem;
-    }
-    .stats, .last-matches, .odds, .recommendation {
-      margin-top: 1rem;
-      font-size: 0.9rem;
-    }
-    .recommendation {
+
+    .button {
+      background-color: #00ff88;
+      color: #000;
       font-weight: bold;
-      color: #00ff99;
+      border: none;
+      padding: 10px 18px;
+      font-size: 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 15px;
+      transition: background 0.3s ease;
     }
-    .advanced {
-      background: #111;
-      margin-top: 1rem;
-      padding: 0.8rem;
-      border-radius: 10px;
-      border-left: 4px solid #00ff99;
+
+    .button:hover {
+      background-color: #00d377;
+    }
+
+    hr {
+      border: 0;
+      border-top: 1px solid #444;
+      margin: 15px 0;
+    }
+
+    @media (max-width: 768px) {
+      .stats-container {
+        flex-direction: column;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>⚽ SniperBet — Jogos do Dia</h1>
-  <div id="games"></div>
+  <h1 class="titulo">⚽ SniperBet <span class="sub">— Jogos do Dia</span></h1>
+  <div id="games">Carregando...</div>
 
   <script>
-    async function fetchGames() {
+    async function loadGames() {
       const res = await fetch('/games');
       const games = await res.json();
       const container = document.getElementById('games');
-
-      if (!games.length) {
-        container.innerHTML = '<p>Nenhum jogo disponível.</p>';
-        return;
-      }
+      container.innerHTML = '';
 
       games.forEach(game => {
-        const el = document.createElement('div');
-        el.className = 'game';
+        const div = document.createElement('div');
+        div.className = 'game';
 
-        el.innerHTML = `
+        const homeStats = game.stats.home;
+        const awayStats = game.stats.away;
+
+        const homeMatches = game.last5Matches.home?.map(match =>
+          `• ${match.date} — ${match.homeTeam} ${match.homeGoals} x ${match.awayGoals} ${match.awayTeam} (${match.venue})`
+        ).join('<br>') || '';
+
+        const awayMatches = game.last5Matches.away?.map(match =>
+          `• ${match.date} — ${match.homeTeam} ${match.homeGoals} x ${match.awayGoals} ${match.awayTeam} (${match.venue})`
+        ).join('<br>') || '';
+
+        const predictions = game.prediction?.win_percent || {};
+        const standings = game.standings || [];
+        const homeStanding = standings.find(t => t.team.name === game.homeTeam);
+        const awayStanding = standings.find(t => t.team.name === game.awayTeam);
+        const odds = game.odds || {};
+        const predAdvice = game.prediction?.advice || '-';
+
+        const homeClass = homeStanding ? `${homeStanding.rank}º lugar | ${homeStanding.points} pts | ${homeStanding.all.played} jogos (${homeStanding.all.win}V ${homeStanding.all.draw}E ${homeStanding.all.lose}D)` : '-';
+        const awayClass = awayStanding ? `${awayStanding.rank}º lugar | ${awayStanding.points} pts | ${awayStanding.all.played} jogos (${awayStanding.all.win}V ${awayStanding.all.draw}E ${awayStanding.all.lose}D)` : '-';
+
+        div.innerHTML = `
           <div class="teams">
-            <span><img src="${game.homeLogo}" /> ${game.homeTeam}</span>
-            <span>VS</span>
-            <span>${game.awayTeam} <img src="${game.awayLogo}" /></span>
+            <img src="${game.homeLogo}" class="logo"> ${game.homeTeam}
+            vs
+            <img src="${game.awayLogo}" class="logo"> ${game.awayTeam}
           </div>
-          <div class="time">🕒 ${game.time}</div>
-
-          <div class="stats">
-            <div><strong>${game.homeTeam}</strong> - Médias (últimos 5 jogos):</div>
-            <ul>
-              <li>Gols feitos: ${game.stats.home.goalsFor}</li>
-              <li>Gols sofridos: ${game.stats.home.goalsAgainst}</li>
-              <li>Chutes: ${game.stats.home.shots}</li>
-              <li>Chutes ao gol: ${game.stats.home.shotsOn}</li>
-              <li>Escanteios: ${game.stats.home.corners}</li>
-              <li>Cartões: ${game.stats.home.cards}</li>
-            </ul>
-
-            <div><strong>${game.awayTeam}</strong> - Médias (últimos 5 jogos):</div>
-            <ul>
-              <li>Gols feitos: ${game.stats.away.goalsFor}</li>
-              <li>Gols sofridos: ${game.stats.away.goalsAgainst}</li>
-              <li>Chutes: ${game.stats.away.shots}</li>
-              <li>Chutes ao gol: ${game.stats.away.shotsOn}</li>
-              <li>Escanteios: ${game.stats.away.corners}</li>
-              <li>Cartões: ${game.stats.away.cards}</li>
-            </ul>
+          <div class="time">🕒 Horário: ${game.time}</div>
+          <hr>
+          <div class="stats-container">
+            <div class="stats">
+              <strong>${game.homeTeam} - Médias (últimos 5 jogos):</strong><br>
+              • Gols feitos: ${homeStats.goalsFor}<br>
+              • Gols sofridos: ${homeStats.goalsAgainst}<br>
+              • Chutes: ${homeStats.shots}<br>
+              • Chutes ao gol: ${homeStats.shotsOn}<br>
+              • Escanteios: ${homeStats.corners}<br>
+              • Cartões: ${homeStats.cards}
+            </div>
+            <div class="stats">
+              <strong>${game.awayTeam} - Médias (últimos 5 jogos):</strong><br>
+              • Gols feitos: ${awayStats.goalsFor}<br>
+              • Gols sofridos: ${awayStats.goalsAgainst}<br>
+              • Chutes: ${awayStats.shots}<br>
+              • Chutes ao gol: ${awayStats.shotsOn}<br>
+              • Escanteios: ${awayStats.corners}<br>
+              • Cartões: ${awayStats.cards}
+            </div>
           </div>
-
-          <div class="last-matches">
-            <strong>Últimos 5 jogos de ${game.homeTeam}:</strong>
-            <ul>
-              ${game.last5Matches.home.map(m => `<li>${m.date} — ${m.homeTeam} ${m.homeGoals} x ${m.awayGoals} ${m.awayTeam} (${m.venue})</li>`).join('')}
-            </ul>
-            <strong>Últimos 5 jogos de ${game.awayTeam}:</strong>
-            <ul>
-              ${game.last5Matches.away.map(m => `<li>${m.date} — ${m.homeTeam} ${m.homeGoals} x ${m.awayGoals} ${m.awayTeam} (${m.venue})</li>`).join('')}
-            </ul>
+          <div class="recent-matches">
+            <strong>Últimos 5 jogos de ${game.homeTeam}:</strong><br>${homeMatches}<br><br>
+            <strong>Últimos 5 jogos de ${game.awayTeam}:</strong><br>${awayMatches}
           </div>
+          <button class="button" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'block' ? 'none' : 'block'">
+            ➕ Ver análise avançada
+          </button>
+          <div class="advanced" style="display:none">
+            <hr>
+            <strong>📊 Previsão:</strong><br>
+            • Palpite: ${predAdvice}<br>
+            • ${game.homeTeam}: ${predictions.home || '0'}%<br>
+            • Empate: ${predictions.draw || '0'}%<br>
+            • ${game.awayTeam}: ${predictions.away || '0'}%<br><br>
 
-          <div class="odds">
-            <strong>Odds:</strong>
-            <ul>
-              <li>Vitória ${game.homeTeam}: ${game.odds.home ?? '-'}</li>
-              <li>Empate: ${game.odds.draw ?? '-'}</li>
-              <li>Vitória ${game.awayTeam}: ${game.odds.away ?? '-'}</li>
-              <li>Over 2.5: ${game.odds.over25 ?? '-'}</li>
-              <li>Ambas Marcam: ${game.odds.btts ?? '-'}</li>
-            </ul>
+            <strong>🏆 Classificação:</strong><br>
+            ${game.homeTeam} - ${homeClass}<br>
+            ${game.awayTeam} - ${awayClass}<br><br>
+
+            <strong>💵 Odds:</strong><br>
+            • ${game.homeTeam}: ${odds.home || '-'}<br>
+            • Empate: ${odds.draw || '-'}<br>
+            • ${game.awayTeam}: ${odds.away || '-'}<br>
+            • Over 2.5: ${odds.over25 || '-'}<br>
+            • Ambos marcam: ${odds.btts || '-'}
           </div>
-
-          <div class="recommendation">🔎 ${game.recommendation}</div>
-
-          <div class="advanced">
-            <strong>Probabilidades Avançadas:</strong><br />
-            ${game.prediction ? `
-              <div>${game.prediction.advice}</div>
-              <div>🏠 ${game.homeTeam}: ${game.prediction.win_percent.home}%</div>
-              <div>🤝 Empate: ${game.prediction.win_percent.draw}%</div>
-              <div>🏳️ ${game.awayTeam}: ${game.prediction.win_percent.away}%</div>
-            ` : `<div>Sem dados disponíveis.</div>`}
-          </div>
+          <div class="rec">🔍 ${game.recommendation}</div>
         `;
 
-        container.appendChild(el);
+        container.appendChild(div);
       });
     }
 
-    fetchGames();
+    loadGames();
   </script>
 </body>
 </html>
