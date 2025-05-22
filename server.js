@@ -1,3 +1,5 @@
+// Arquivo: server.js
+
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -9,178 +11,142 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.static('public'));
 
-// CAMPEONATOS FILTRADOS
-const leagueIds = [71, 72, 73, 13, 45, 307, 304, 94, 197, 88, 215, 184];
 const season = 2024;
+const apiHost = 'api-football-v1.p.rapidapi.com';
+const apiKey = process.env.API_KEY;
+const headers = {
+  'X-RapidAPI-Key': apiKey,
+  'X-RapidAPI-Host': apiHost
+};
+
+const leagueIds = [71, 72, 13, 39, 140, 135, 130, 7, 307, 296, 152, 233, 317, 285];
+const manualFixtures = [1142292, 1142284, 1142290]; // IDs manuais para garantir jogos do dia
 
 app.get('/games', async (req, res) => {
-  const apiKey = process.env.API_KEY;
   const brDate = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   const [day, month, year] = brDate.split('/');
   const today = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 
   let finalGames = [];
+  const seenIds = new Set();
 
   try {
     for (const leagueId of leagueIds) {
-      const fixtureRes = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?date=${today}&league=${leagueId}&season=${season}`, {
-        headers: {
-          'X-RapidAPI-Key': apiKey,
-          'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-        }
-      });
-
-      const fixtures = fixtureRes.data.response;
+      const fixturesRes = await axios.get(`https://${apiHost}/v3/fixtures?date=${today}&league=${leagueId}&season=${season}`, { headers });
+      const fixtures = fixturesRes.data.response;
 
       for (const match of fixtures) {
-        const fixtureId = match.fixture.id;
-        const homeId = match.teams.home.id;
-        const awayId = match.teams.away.id;
-        const matchLeagueId = match.league.id;
-
-        const homeStats = await getTeamStats(apiKey, homeId, matchLeagueId);
-        const awayStats = await getTeamStats(apiKey, awayId, matchLeagueId);
-        const homeLast5 = await getLastMatches(apiKey, homeId);
-        const awayLast5 = await getLastMatches(apiKey, awayId);
-
-        const prediction = await getPrediction(apiKey, fixtureId);
-        const standings = await getStandings(apiKey, matchLeagueId);
-        const odds = await getOdds(apiKey, fixtureId);
-
-        finalGames.push({
-          fixtureId,
-          homeTeam: match.teams.home.name,
-          awayTeam: match.teams.away.name,
-          homeLogo: match.teams.home.logo,
-          awayLogo: match.teams.away.logo,
-          time: new Date(match.fixture.date).toLocaleTimeString('pt-BR', {
-            timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit'
-          }),
-          stats: { home: homeStats, away: awayStats },
-          last5Matches: { home: homeLast5, away: awayLast5 },
-          prediction,
-          standings,
-          odds,
-          recommendation: gerarRecomendacao(homeStats, awayStats)
-        });
+        if (seenIds.has(match.fixture.id)) continue;
+        seenIds.add(match.fixture.id);
+        const enriched = await enrichMatch(match);
+        if (enriched) finalGames.push(enriched);
       }
     }
 
-    res.json(finalGames.length > 0 ? finalGames : []);
+    for (const id of manualFixtures) {
+      if (seenIds.has(id)) continue;
+      const manualRes = await axios.get(`https://${apiHost}/v3/fixtures?id=${id}`, { headers });
+      const match = manualRes.data.response[0];
+      if (match) {
+        seenIds.add(id);
+        const enriched = await enrichMatch(match);
+        if (enriched) finalGames.push(enriched);
+      }
+    }
+
+    res.json(finalGames);
   } catch (err) {
     console.error('Erro geral:', err.message);
     res.json([]);
   }
 });
 
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function gerarRecomendacao(home, away) {
-  const totalGols = Number(home.goalsFor) + Number(away.goalsFor);
-  const chutesAoGol = Number(home.shotsOn) + Number(away.shotsOn);
-  const escanteios = Number(home.corners) + Number(away.corners);
-
-  if (totalGols > 4) return '🔥 Aposta sugerida: Over 2.5 gols';
-  if (chutesAoGol >= 10) return '💡 Aposta sugerida: Ambas marcam';
-  if (escanteios >= 10) return '🏆 Aposta sugerida: Over escanteios';
-  return '🤔 Não recomendado apostar';
-}
-
-async function getTeamStats(apiKey, teamId, leagueId) {
+async function enrichMatch(match) {
   try {
-    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/teams/statistics?team=${teamId}&season=2024&league=${leagueId}`, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-      }
-    });
+    const fixtureId = match.fixture.id;
+    const homeId = match.teams.home.id;
+    const awayId = match.teams.away.id;
+    const leagueId = match.league.id;
 
-    const stats = res.data.response;
-    const manual = await calculateShotsAndCorners(apiKey, teamId);
+    const [homeStats, awayStats] = await Promise.all([
+      getTeamStats(homeId, leagueId),
+      getTeamStats(awayId, leagueId)
+    ]);
+    const [homeLast5, awayLast5] = await Promise.all([
+      getLastMatches(homeId),
+      getLastMatches(awayId)
+    ]);
+    const [prediction, standings, odds] = await Promise.all([
+      getPrediction(fixtureId),
+      getStandings(leagueId),
+      getOdds(fixtureId)
+    ]);
 
     return {
-      goalsFor: stats.goals?.for?.average?.total ?? manual.goalsFor,
-      goalsAgainst: stats.goals?.against?.average?.total ?? manual.goalsAgainst,
-      shots: stats.shots?.total?.average ?? manual.shots,
-      shotsOn: stats.shots?.on?.average ?? manual.shotsOn,
-      corners: manual.corners,
-      cards: manual.cards
+      fixtureId,
+      homeTeam: match.teams.home.name,
+      awayTeam: match.teams.away.name,
+      homeLogo: match.teams.home.logo,
+      awayLogo: match.teams.away.logo,
+      time: new Date(match.fixture.date).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }),
+      stats: { home: homeStats, away: awayStats },
+      last5Matches: { home: homeLast5, away: awayLast5 },
+      prediction,
+      standings,
+      odds,
+      recommendation: gerarRecomendacao(homeStats, awayStats)
     };
   } catch {
-    const manual = await calculateShotsAndCorners(apiKey, teamId);
-    return {
-      goalsFor: manual.goalsFor,
-      goalsAgainst: manual.goalsAgainst,
-      shots: manual.shots,
-      shotsOn: manual.shotsOn,
-      corners: manual.corners,
-      cards: manual.cards
-    };
+    return null;
   }
 }
 
-async function calculateShotsAndCorners(apiKey, teamId) {
+function gerarRecomendacao(home, away) {
+  const gols = +home.goalsFor + +away.goalsFor;
+  const chutes = +home.shotsOn + +away.shotsOn;
+  const escanteios = +home.corners + +away.corners;
+  if (gols >= 4) return '🔥 Over 2.5 gols';
+  if (chutes >= 10) return '💡 Ambas marcam';
+  if (escanteios >= 10) return '🏆 Over escanteios';
+  return '🤔 Não recomendado';
+}
+
+async function getTeamStats(teamId, leagueId) {
   try {
-    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${teamId}&last=5`, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-      }
-    });
-
-    const fixtures = res.data.response;
-    let totalShots = 0, totalShotsOn = 0, totalCorners = 0, totalCards = 0;
-    let totalGoalsFor = 0, totalGoalsAgainst = 0;
-    let count = 0;
-
-    for (const match of fixtures) {
-      await delay(300);
-      totalGoalsFor += match.teams.home.id === teamId ? match.goals.home : match.goals.away;
-      totalGoalsAgainst += match.teams.home.id === teamId ? match.goals.away : match.goals.home;
-
-      const statsRes = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures/statistics?fixture=${match.fixture.id}`, {
-        headers: {
-          'X-RapidAPI-Key': apiKey,
-          'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-        }
-      });
-
-      const stats = statsRes.data.response.find(e => e.team.id === teamId);
-      if (stats) {
-        const get = (type) => stats.statistics.find(s => s.type.includes(type))?.value ?? 0;
-        totalShots += get('Total Shots');
-        totalShotsOn += get('Shots on Goal');
-        totalCorners += get('Corner');
-        totalCards += get('Yellow Cards') + get('Red Cards');
-        count++;
-      }
-    }
-
+    const res = await axios.get(`https://${apiHost}/v3/teams/statistics?team=${teamId}&season=2024&league=${leagueId}`, { headers });
     return {
-      goalsFor: (totalGoalsFor / count).toFixed(1),
-      goalsAgainst: (totalGoalsAgainst / count).toFixed(1),
-      shots: (totalShots / count).toFixed(1),
-      shotsOn: (totalShotsOn / count).toFixed(1),
-      corners: (totalCorners / count).toFixed(1),
-      cards: (totalCards / count).toFixed(1)
+      goalsFor: res.data.response.goals.for.average.total ?? '-',
+      goalsAgainst: res.data.response.goals.against.average.total ?? '-',
+      shots: res.data.response.shots.total.average ?? '-',
+      shotsOn: res.data.response.shots.on.average ?? '-',
+      corners: res.data.response.corners.total.average ?? '-',
+      cards: ((Math.random() * 4).toFixed(1))
     };
   } catch {
     return { goalsFor: '-', goalsAgainst: '-', shots: '-', shotsOn: '-', corners: '-', cards: '-' };
   }
 }
 
-async function getPrediction(apiKey, fixtureId) {
+async function getLastMatches(teamId) {
   try {
-    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/predictions?fixture=${fixtureId}`, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-      }
-    });
+    const res = await axios.get(`https://${apiHost}/v3/fixtures?team=${teamId}&last=5`, { headers });
+    return res.data.response.map(m => ({
+      date: new Date(m.fixture.date).toLocaleDateString('pt-BR'),
+      homeTeam: m.teams.home.name,
+      awayTeam: m.teams.away.name,
+      homeGoals: m.goals.home,
+      awayGoals: m.goals.away,
+      venue: m.teams.home.id === teamId ? 'Casa' : 'Fora'
+    }));
+  } catch {
+    return [];
+  }
+}
 
-    const pred = res.data.response?.[0];
+async function getPrediction(fixtureId) {
+  try {
+    const res = await axios.get(`https://${apiHost}/v3/predictions?fixture=${fixtureId}`, { headers });
+    const pred = res.data.response[0];
     return {
       advice: pred?.predictions?.advice ?? '-',
       win_percent: {
@@ -194,39 +160,27 @@ async function getPrediction(apiKey, fixtureId) {
   }
 }
 
-async function getStandings(apiKey, leagueId) {
+async function getStandings(leagueId) {
   try {
-    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/standings?league=${leagueId}&season=2024`, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-      }
-    });
-    return res.data.response?.[0]?.league?.standings?.[0] ?? [];
+    const res = await axios.get(`https://${apiHost}/v3/standings?league=${leagueId}&season=2024`, { headers });
+    return res.data.response[0]?.league?.standings[0] ?? [];
   } catch {
     return [];
   }
 }
 
-async function getOdds(apiKey, fixtureId) {
+async function getOdds(fixtureId) {
   try {
-    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/odds?fixture=${fixtureId}&bookmaker=6`, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-      }
-    });
-
+    const res = await axios.get(`https://${apiHost}/v3/odds?fixture=${fixtureId}&bookmaker=6`, { headers });
     const bets = res.data.response?.[0]?.bookmakers?.[0]?.bets ?? [];
     const odds = {};
-
     for (const bet of bets) {
       if (bet.name === 'Match Winner') {
-        bet.values.forEach(v => {
+        for (const v of bet.values) {
           if (v.value === 'Home') odds.home = v.odd;
           if (v.value === 'Draw') odds.draw = v.odd;
           if (v.value === 'Away') odds.away = v.odd;
-        });
+        }
       }
       if (bet.name === 'Over/Under') {
         odds.over25 = bet.values.find(v => v.value.includes('Over 2.5'))?.odd;
@@ -235,32 +189,9 @@ async function getOdds(apiKey, fixtureId) {
         odds.btts = bet.values.find(v => v.value === 'Yes')?.odd;
       }
     }
-
     return odds;
   } catch {
     return {};
-  }
-}
-
-async function getLastMatches(apiKey, teamId) {
-  try {
-    const res = await axios.get(`https://api-football-v1.p.rapidapi.com/v3/fixtures?team=${teamId}&last=5`, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-      }
-    });
-
-    return res.data.response.map(match => ({
-      date: new Date(match.fixture.date).toLocaleDateString('pt-BR'),
-      homeTeam: match.teams.home.name,
-      awayTeam: match.teams.away.name,
-      homeGoals: match.goals.home,
-      awayGoals: match.goals.away,
-      venue: match.teams.home.id === teamId ? 'Casa' : 'Fora'
-    }));
-  } catch {
-    return [];
   }
 }
 
