@@ -1,97 +1,147 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SniperBet — Jogos do Dia</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
-      background: #111;
-      color: #f0f0f0;
+      background: linear-gradient(to bottom, #111, #222);
+      color: #fff;
       font-family: Arial, sans-serif;
-      padding: 20px;
+      padding: 2rem;
     }
-
     h1 {
+      color: #00ff99;
       text-align: center;
-      color: #00ff88;
-      margin-bottom: 30px;
     }
-
     .game {
-      background: #1e1e1e;
-      border-radius: 10px;
-      padding: 15px;
-      margin-bottom: 20px;
-      box-shadow: 0 0 5px #000;
+      background: #1a1a1a;
+      padding: 1rem;
+      margin: 1rem 0;
+      border-radius: 12px;
     }
-
     .teams {
       display: flex;
-      align-items: center;
       justify-content: space-between;
-      font-size: 18px;
-    }
-
-    .team {
-      display: flex;
       align-items: center;
-      gap: 10px;
+      font-weight: bold;
     }
-
-    .logo {
-      height: 30px;
-      width: 30px;
-      border-radius: 50%;
-      background: #333;
+    .teams img {
+      height: 25px;
+      margin: 0 10px;
     }
-
     .time {
-      text-align: center;
-      margin-top: 10px;
-      font-size: 14px;
+      font-size: 0.95rem;
       color: #ccc;
+      margin-top: 0.4rem;
+    }
+    .stats, .last-matches, .odds, .recommendation {
+      margin-top: 1rem;
+      font-size: 0.9rem;
+    }
+    .recommendation {
+      font-weight: bold;
+      color: #00ff99;
+    }
+    .advanced {
+      background: #111;
+      margin-top: 1rem;
+      padding: 0.8rem;
+      border-radius: 10px;
+      border-left: 4px solid #00ff99;
     }
   </style>
 </head>
 <body>
   <h1>⚽ SniperBet — Jogos do Dia</h1>
-  <div id="games">Carregando...</div>
+  <div id="games"></div>
 
   <script>
-    async function carregarJogos() {
+    async function fetchGames() {
       const res = await fetch('/games');
-      const jogos = await res.json();
+      const games = await res.json();
       const container = document.getElementById('games');
-      container.innerHTML = '';
 
-      if (!jogos.length) {
-        container.innerHTML = '<p>Nenhum jogo encontrado.</p>';
+      if (!games.length) {
+        container.innerHTML = '<p>Nenhum jogo disponível.</p>';
         return;
       }
 
-      jogos.forEach(jogo => {
-        const div = document.createElement('div');
-        div.className = 'game';
-        div.innerHTML = `
+      games.forEach(game => {
+        const el = document.createElement('div');
+        el.className = 'game';
+
+        el.innerHTML = `
           <div class="teams">
-            <div class="team">
-              <img src="${jogo.homeLogo}" class="logo">
-              <span>${jogo.homeTeam}</span>
-            </div>
-            <span>vs</span>
-            <div class="team">
-              <img src="${jogo.awayLogo}" class="logo">
-              <span>${jogo.awayTeam}</span>
-            </div>
+            <span><img src="${game.homeLogo}" /> ${game.homeTeam}</span>
+            <span>VS</span>
+            <span>${game.awayTeam} <img src="${game.awayLogo}" /></span>
           </div>
-          <div class="time">🕒 ${jogo.time}</div>
+          <div class="time">🕒 ${game.time}</div>
+
+          <div class="stats">
+            <div><strong>${game.homeTeam}</strong> - Médias (últimos 5 jogos):</div>
+            <ul>
+              <li>Gols feitos: ${game.stats.home.goalsFor}</li>
+              <li>Gols sofridos: ${game.stats.home.goalsAgainst}</li>
+              <li>Chutes: ${game.stats.home.shots}</li>
+              <li>Chutes ao gol: ${game.stats.home.shotsOn}</li>
+              <li>Escanteios: ${game.stats.home.corners}</li>
+              <li>Cartões: ${game.stats.home.cards}</li>
+            </ul>
+
+            <div><strong>${game.awayTeam}</strong> - Médias (últimos 5 jogos):</div>
+            <ul>
+              <li>Gols feitos: ${game.stats.away.goalsFor}</li>
+              <li>Gols sofridos: ${game.stats.away.goalsAgainst}</li>
+              <li>Chutes: ${game.stats.away.shots}</li>
+              <li>Chutes ao gol: ${game.stats.away.shotsOn}</li>
+              <li>Escanteios: ${game.stats.away.corners}</li>
+              <li>Cartões: ${game.stats.away.cards}</li>
+            </ul>
+          </div>
+
+          <div class="last-matches">
+            <strong>Últimos 5 jogos de ${game.homeTeam}:</strong>
+            <ul>
+              ${game.last5Matches.home.map(m => `<li>${m.date} — ${m.homeTeam} ${m.homeGoals} x ${m.awayGoals} ${m.awayTeam} (${m.venue})</li>`).join('')}
+            </ul>
+            <strong>Últimos 5 jogos de ${game.awayTeam}:</strong>
+            <ul>
+              ${game.last5Matches.away.map(m => `<li>${m.date} — ${m.homeTeam} ${m.homeGoals} x ${m.awayGoals} ${m.awayTeam} (${m.venue})</li>`).join('')}
+            </ul>
+          </div>
+
+          <div class="odds">
+            <strong>Odds:</strong>
+            <ul>
+              <li>Vitória ${game.homeTeam}: ${game.odds.home ?? '-'}</li>
+              <li>Empate: ${game.odds.draw ?? '-'}</li>
+              <li>Vitória ${game.awayTeam}: ${game.odds.away ?? '-'}</li>
+              <li>Over 2.5: ${game.odds.over25 ?? '-'}</li>
+              <li>Ambas Marcam: ${game.odds.btts ?? '-'}</li>
+            </ul>
+          </div>
+
+          <div class="recommendation">🔎 ${game.recommendation}</div>
+
+          <div class="advanced">
+            <strong>Probabilidades Avançadas:</strong><br />
+            ${game.prediction ? `
+              <div>${game.prediction.advice}</div>
+              <div>🏠 ${game.homeTeam}: ${game.prediction.win_percent.home}%</div>
+              <div>🤝 Empate: ${game.prediction.win_percent.draw}%</div>
+              <div>🏳️ ${game.awayTeam}: ${game.prediction.win_percent.away}%</div>
+            ` : `<div>Sem dados disponíveis.</div>`}
+          </div>
         `;
-        container.appendChild(div);
+
+        container.appendChild(el);
       });
     }
 
-    carregarJogos();
+    fetchGames();
   </script>
 </body>
 </html>
